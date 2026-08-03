@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NATO SAPIENT Counter-UAS Military Drone Detection & Sensor Fusion C2</title>
+    <meta name="description" content="Military-grade drone detection, ByteTrack tracking, 3D Radar sensor fusion, and NATO SAPIENT STANAG 4810 command center.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="c2-container">
+        <!-- TOP MILITARY HEADER BAR -->
+        <header class="top-bar">
+            <div class="header-brand">
+                <div class="nato-badge">
+                    <span class="star-icon">✦</span> NATO SAPIENT STANAG 4810 COMPLIANT
+                </div>
+                <h1 class="header-title">COUNTER-UAS DEFENSE COMMAND CENTER</h1>
+                <div class="header-sub">YOLOv8-OBB Visual/Thermal Detection • ByteTrack • 3D Pulse-Doppler Radar Fusion</div>
+            </div>
+
+            <div class="system-status-group">
+                <div class="status-badge" id="defcon-badge">
+                    <span class="badge-label">DEFCON LEVEL</span>
+                    <span class="badge-value defcon-2">LEVEL 2 (ALERT)</span>
+                </div>
+                <div class="status-badge">
+                    <span class="badge-label">YOLO MODEL</span>
+                    <span class="badge-value model-active">YOLOv8-OBB (Fine-Tuned)</span>
+                </div>
+                <div class="status-badge">
+                    <span class="badge-label">FUSION ENGINE</span>
+                    <span class="badge-value fusion-online">EKF FUSED (ACTIVE)</span>
+                </div>
+                <div class="time-display">
+                    <div id="utc-clock">17:48:00 UTC</div>
+                    <div class="coords">34°03'07.9"N 118°14'37.3"W</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN TACTICAL GRID -->
+        <main class="dashboard-grid">
+            
+            <!-- COLUMN 1: LAYER 1 - DETECTION LAYER (RADAR & EO/IR FEEDS) -->
+            <section class="panel layer-detection" id="panel-layer1">
+                <div class="panel-header">
+                    <h2><span class="layer-tag">LAYER 1</span> DETECTION LAYER: SENSORS & VISION</h2>
+                    <div class="camera-mode-toggle">
+                        <button class="btn-toggle active" id="btn-mode-rgb">EO (RGB Day)</button>
+                        <button class="btn-toggle" id="btn-mode-ir">IR (FLIR Night)</button>
+                    </div>
+                </div>
+
+                <div class="detection-feeds">
+                    <!-- DUAL EO/IR CAMERA CANVAS -->
+                    <div class="feed-box camera-box">
+                        <div class="feed-overlay">
+                            <span class="feed-name" id="camera-feed-label">EO CAMERA 01 (RGB DAY) • 1080p60</span>
+                            <span class="fps-tag" id="fps-counter">60 FPS | 13.2 ms</span>
+                        </div>
+                        <canvas id="camera-canvas" width="640" height="360"></canvas>
+                        <div class="box-corner tl"></div><div class="box-corner tr"></div>
+                        <div class="box-corner bl"></div><div class="box-corner br"></div>
+                    </div>
+
+                    <!-- 3D RADAR PPI SCOPE CANVAS -->
+                    <div class="feed-box radar-box">
+                        <div class="feed-overlay">
+                            <span class="feed-name">3D PULSE-DOPPLER RADAR • AN/TPQ-50 MASTER</span>
+                            <span class="radar-range-tag">MAX RANGE: 10,000 M</span>
+                        </div>
+                        <canvas id="radar-canvas" width="360" height="360"></canvas>
+                        <div class="box-corner tl"></div><div class="box-corner tr"></div>
+                        <div class="box-corner bl"></div><div class="box-corner br"></div>
+                    </div>
+                </div>
+
+                <!-- AUX SENSOR INDICATORS: RF & ACOUSTIC -->
+                <div class="aux-sensors">
+                    <div class="aux-card">
+                        <div class="aux-title">RF EMISSION SPECTRUM (2.4GHz / 5.8GHz)</div>
+                        <canvas id="rf-canvas" width="300" height="40"></canvas>
+                        <div class="aux-val">TELEMETRY DETECTED (SNR: 18.4 dB)</div>
+                    </div>
+                    <div class="aux-card">
+                        <div class="aux-title">ACOUSTIC BLADE PASS FREQUENCY (BPF)</div>
+                        <canvas id="acoustic-canvas" width="300" height="40"></canvas>
+                        <div class="aux-val">4-BLADE ROTOR HARMONIC MATCHED</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- COLUMN 2: LAYER 2 - SENSOR FUSION ENGINE -->
+            <section class="panel layer-fusion" id="panel-layer2">
+                <div class="panel-header">
+                    <h2><span class="layer-tag">LAYER 2</span> SENSOR FUSION ENGINE (UNIFIED PICTURE)</h2>
+                    <div class="fusion-mode-switch">
+                        <button class="btn-fusion" id="btn-eo-only">EO/IR Only</button>
+                        <button class="btn-fusion" id="btn-radar-only">Radar Only</button>
+                        <button class="btn-fusion active" id="btn-fused-mode">SAPIENT Fused</button>
+                    </div>
+                </div>
+
+                <!-- UNIFIED THREAT MAP GRID -->
+                <div class="fusion-map-container">
+                    <div class="fusion-map-overlay">
+                        <div class="map-stat">FUSED TRACKS: <span id="fused-count">2 ACTIVE</span></div>
+                        <div class="map-stat">FALSE ALARM RATE (FAR): <span id="far-rate" class="highlight-green">1.8%</span></div>
+                    </div>
+                    <canvas id="fusion-map-canvas" width="580" height="240"></canvas>
+                </div>
+
+                <!-- UNIFIED THREAT MATRIX TABLE -->
+                <div class="table-wrapper">
+                    <table class="fusion-table" id="fusion-matrix-table">
+                        <thead>
+                            <tr>
+                                <th>UTP TRACK ID</th>
+                                <th>SENSORS CORRELATED</th>
+                                <th>DISTANCE</th>
+                                <th>VELOCITY</th>
+                                <th>RCS ($m^2$)</th>
+                                <th>CONF</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fusion-table-body">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- COLUMN 3: LAYER 3 - DECISION & EFFECTOR RESPONSE LAYER -->
+            <section class="panel layer-decision" id="panel-layer3">
+                <div class="panel-header">
+                    <h2><span class="layer-tag">LAYER 3</span> DECISION & EFFECTOR RESPONSE</h2>
+                </div>
+
+                <!-- AI THREAT CLASSIFICATION CARD -->
+                <div class="threat-card" id="active-threat-card">
+                    <div class="threat-header">
+                        <span class="threat-class-title" id="threat-title">MILITARY MICRO-DRONE (QUADROTOR)</span>
+                        <span class="threat-alert-pill critical" id="threat-pill">CRITICAL THREAT</span>
+                    </div>
+                    <div class="threat-metrics">
+                        <div class="t-metric">
+                            <span class="t-lbl">TARGET TRACK</span>
+                            <span class="t-val" id="threat-track-id">UTP-TRK-101</span>
+                        </div>
+                        <div class="t-metric">
+                            <span class="t-lbl">ESTIMATED RANGE</span>
+                            <span class="t-val" id="threat-range">1,010 m</span>
+                        </div>
+                        <div class="t-metric">
+                            <span class="t-lbl">YOLO OBB CONF</span>
+                            <span class="t-val" id="threat-conf">94.8%</span>
+                        </div>
+                        <div class="t-metric">
+                            <span class="t-lbl">BYTE TRACK ID</span>
+                            <span class="t-val" id="threat-bytetrack">#TRK-01</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EFFECTOR RESPONSE CONTROLS -->
+                <div class="effector-section">
+                    <h3 class="section-subtitle">EFFECTOR CONTROL NODES (SAPIENT STANDARD)</h3>
+                    <div class="effector-buttons">
+                        <button class="btn-effector jammer" id="btn-effect-ew">
+                            <span class="eff-icon">⚡</span>
+                            <div class="eff-info">
+                                <span class="eff-name">ELECTRONIC WARFARE (EW)</span>
+                                <span class="eff-type">RF Soft-Kill Jamming & Spoofing</span>
+                            </div>
+                        </button>
+
+                        <button class="btn-effector laser" id="btn-effect-laser">
+                            <span class="eff-icon">🎯</span>
+                            <div class="eff-info">
+                                <span class="eff-name">DIRECTED ENERGY (HEL)</span>
+                                <span class="eff-type">High-Energy Laser Neutralization</span>
+                            </div>
+                        </button>
+
+                        <button class="btn-effector kinetic" id="btn-effect-kinetic">
+                            <span class="eff-icon">🚀</span>
+                            <div class="eff-info">
+                                <span class="eff-name">KINETIC INTERCEPTOR</span>
+                                <span class="eff-type">Counter-UAS Missile / Interceptor</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="engagement-log" id="engagement-log-box">
+                        <div class="log-entry sys">[17:48:02] System initialized. NATO SAPIENT SAPIENT-C2 Online.</div>
+                        <div class="log-entry warn">[17:48:05] Target UTP-TRK-101 classified as Drone via YOLOv8-OBB.</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- FULL WIDTH BOTTOM PANEL: BENCHMARK SUITE & SAPIENT PROTOCOL INSPECTOR -->
+            <section class="panel full-width-panel">
+                <div class="tab-header">
+                    <button class="tab-btn active" id="tab-benchmarks">RESEARCH BENCHMARK & EVALUATION SUITE</button>
+                    <button class="tab-btn" id="tab-sapient-xml">NATO SAPIENT PROTOCOL INSPECTOR (STANAG 4810)</button>
+                </div>
+
+                <!-- BENCHMARK TAB CONTENT -->
+                <div class="tab-content active" id="content-benchmarks">
+                    <div class="benchmark-grid">
+                        <div class="bench-table-wrapper">
+                            <h4>YOLO MODEL EVALUATION COMPARISON (DRONE DETECTION)</h4>
+                            <table class="bench-table">
+                                <thead>
+                                    <tr>
+                                        <th>MODEL ARCHITECTURE</th>
+                                        <th>PRETRAINING DATASET</th>
+                                        <th>PRECISION</th>
+                                        <th>RECALL</th>
+                                        <th>mAP50</th>
+                                        <th>SPEED (MS)</th>
+                                        <th>COVERAGE (%)</th>
+                                        <th>FAR (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="highlight-row">
+                                        <td><strong>YOLOv8-OBB (Fine-Tuned DUT)</strong></td>
+                                        <td>DOTA + DUT Anti-UAV 10k</td>
+                                        <td><span class="text-green">0.912</span></td>
+                                        <td><span class="text-green">0.845</span></td>
+                                        <td><span class="text-green">0.868</span></td>
+                                        <td>13.2 ms</td>
+                                        <td><span class="badge-pct high">84.5% (254/301)</span></td>
+                                        <td><span class="text-green">1.8%</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>YOLOv8-OBB (Baseline)</td>
+                                        <td>DOTA Aerial Imagery</td>
+                                        <td>0.750</td>
+                                        <td>0.040</td>
+                                        <td>0.033</td>
+                                        <td>13.0 ms</td>
+                                        <td><span class="badge-pct low">8.0% (24/301)</span></td>
+                                        <td>4.2%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>YOLOv9</td>
+                                        <td>COCO Dataset</td>
+                                        <td>0.035</td>
+                                        <td>0.003</td>
+                                        <td>0.000</td>
+                                        <td>48.0 ms</td>
+                                        <td><span class="badge-pct low">3.7% (3/80)</span></td>
+                                        <td>15.6%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>YOLOv11</td>
+                                        <td>COCO Dataset</td>
+                                        <td>0.000</td>
+                                        <td>0.000</td>
+                                        <td>0.000</td>
+                                        <td>18.0 ms</td>
+                                        <td><span class="badge-pct zero">0.0% (0/80)</span></td>
+                                        <td>22.1%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="fine-tune-summary">
+                            <h4>DUT ANTI-UAV FINE-TUNING ROADMAP</h4>
+                            <div class="progress-box">
+                                <div class="prog-label">
+                                    <span>DETECTION COVERAGE TARGET</span>
+                                    <span>84.5% ACHIEVED</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 84.5%;"></div>
+                                </div>
+                            </div>
+                            <p class="fine-tune-desc">
+                                Fine-tuning YOLOv8-OBB on 10,000 DUT Anti-UAV images transforms aerial DOTA pretraining into high-precision micro-drone classification, overcoming COCO model failures.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SAPIENT XML INSPECTOR TAB CONTENT -->
+                <div class="tab-content" id="content-sapient-xml">
+                    <pre class="code-block" id="sapient-json-display">
+                    <!-- Loaded dynamically via JS -->
+                    </pre>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Core dependencies
+ultralytics>=8.4.0
+opencv-python>=4.9.0
+numpy>=1.26.0
+
+# PyTorch is intentionally NOT listed here -- install it separately with the
+# correct CUDA build for your GPU driver, e.g.:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# See https://pytorch.org/get-started/locally/ to pick the right command for
+# your system (CPU-only, or a different CUDA version).
