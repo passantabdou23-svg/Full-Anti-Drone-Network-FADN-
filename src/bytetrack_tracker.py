@@ -87,13 +87,19 @@ class STrack:
 
     def to_dict(self):
         vx, vy = self.velocity
-        speed = math.sqrt(vx * vx + vy * vy) * 15.0  # converted to m/s estimate
+        speed_px_per_frame = math.sqrt(vx * vx + vy * vy)
         return {
             "track_id": self.track_id,
             "obb": self.obb.to_dict(),
             "score": round(float(self.score), 3),
             "state": self.state,
-            "speed_mps": round(float(speed), 1),
+            # Real, measured pixel-space speed. NOT converted to real-world
+            # units (m/s) because doing so requires camera calibration
+            # (focal length, altitude/range, sensor size) which this pipeline
+            # does not have. A previous version of this file multiplied by an
+            # arbitrary constant (15.0) and labelled the result "m/s" -- that
+            # was a fabricated unit conversion and has been removed.
+            "speed_px_per_frame": round(float(speed_px_per_frame), 2),
             "trajectory": [{"x": round(h[0], 1), "y": round(h[1], 1)} for h in self.history[-10:]]
         }
 

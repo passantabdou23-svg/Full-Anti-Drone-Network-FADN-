@@ -486,15 +486,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (frameData.fused_threat_picture) {
             frameData.fused_threat_picture.forEach(utp => {
+                const rangeDisplay = (utp.pos_3d && utp.pos_3d.y_m != null) ? `${utp.pos_3d.y_m} m` : "N/A (no georeferencing)";
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
                     <td style="color:var(--primary-cyan); font-weight:700;">${utp.fused_id}</td>
                     <td>${utp.sensor_sources.join(" + ")}</td>
-                    <td>${utp.pos_3d.y_m} m</td>
-                    <td>22.5 m/s</td>
-                    <td>${utp.radar_rcs || "0.018"} m²</td>
+                    <td>${rangeDisplay}</td>
+                    <td>${utp.speed_px_per_frame != null ? utp.speed_px_per_frame + " px/frame" : "N/A"}</td>
+                    <td>${utp.radar_rcs != null ? utp.radar_rcs + " m\u00b2" : "N/A (no radar)"}</td>
                     <td style="color:var(--radar-green); font-weight:700;">${(utp.confidence_score*100).toFixed(1)}%</td>
-                    <td><span class="badge-pct high">CORRELATED</span></td>
+                    <td><span class="badge-pct high">${utp.sensor_sources.length > 1 ? "CORRELATED" : "SINGLE-SENSOR"}</span></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -504,15 +505,16 @@ document.addEventListener("DOMContentLoaded", () => {
             // Active Threat Card
             if (frameData.fused_threat_picture.length > 0) {
                 const topUtp = frameData.fused_threat_picture[0];
+                const topRangeDisplay = (topUtp.pos_3d && topUtp.pos_3d.y_m != null) ? `${topUtp.pos_3d.y_m} m` : "N/A";
                 document.getElementById("threat-title").textContent = topUtp.classification;
                 document.getElementById("threat-track-id").textContent = topUtp.fused_id;
-                document.getElementById("threat-range").textContent = `${topUtp.pos_3d.y_m} m`;
+                document.getElementById("threat-range").textContent = topRangeDisplay;
                 document.getElementById("threat-conf").textContent = `${(topUtp.confidence_score*100).toFixed(1)}%`;
                 document.getElementById("threat-bytetrack").textContent = `#TRK-${topUtp.eo_track_id || "01"}`;
             }
         }
 
-        // Update SAPIENT STANAG 4810 JSON Viewer
+        // Update SAPIENT (STANREC 4869 / BSI Flex 335) JSON Viewer
         if (frameData.sapient_hlm) {
             document.getElementById("sapient-json-display").textContent = 
                 JSON.stringify(frameData.sapient_hlm, null, 2);

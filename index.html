@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NATO SAPIENT Counter-UAS Military Drone Detection & Sensor Fusion C2</title>
-    <meta name="description" content="Military-grade drone detection, ByteTrack tracking, 3D Radar sensor fusion, and NATO SAPIENT STANAG 4810 command center.">
+    <meta name="description" content="Drone detection, ByteTrack tracking, and SAPIENT (STANREC 4869 / BSI Flex 335) protocol formatting research pipeline.">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,7 +17,7 @@
         <header class="top-bar">
             <div class="header-brand">
                 <div class="nato-badge">
-                    <span class="star-icon">✦</span> NATO SAPIENT STANAG 4810 COMPLIANT
+                    <span class="star-icon">✦</span> SAPIENT-INSPIRED MESSAGING (STANREC 4869 / BSI Flex 335)
                 </div>
                 <h1 class="header-title">COUNTER-UAS DEFENSE COMMAND CENTER</h1>
                 <div class="header-sub">YOLOv8-OBB Visual/Thermal Detection • ByteTrack • 3D Pulse-Doppler Radar Fusion</div>
@@ -208,7 +208,7 @@
             <section class="panel full-width-panel">
                 <div class="tab-header">
                     <button class="tab-btn active" id="tab-benchmarks">RESEARCH BENCHMARK & EVALUATION SUITE</button>
-                    <button class="tab-btn" id="tab-sapient-xml">NATO SAPIENT PROTOCOL INSPECTOR (STANAG 4810)</button>
+                    <button class="tab-btn" id="tab-sapient-xml">SAPIENT PROTOCOL INSPECTOR (STANREC 4869 / BSI Flex 335)</button>
                 </div>
 
                 <!-- BENCHMARK TAB CONTENT -->
@@ -231,62 +231,44 @@
                                 </thead>
                                 <tbody>
                                     <tr class="highlight-row">
-                                        <td><strong>YOLOv8-OBB (Fine-Tuned DUT)</strong></td>
-                                        <td>DOTA + DUT Anti-UAV 10k</td>
-                                        <td><span class="text-green">0.912</span></td>
-                                        <td><span class="text-green">0.845</span></td>
+                                        <td><strong>YOLOv8 (Fine-Tuned, DUT Anti-UAV)</strong></td>
+                                        <td>COCO pretrained + DUT Anti-UAV 10k (fine-tuned)</td>
+                                        <td><span class="text-green">0.956</span></td>
                                         <td><span class="text-green">0.868</span></td>
-                                        <td>13.2 ms</td>
-                                        <td><span class="badge-pct high">84.5% (254/301)</span></td>
-                                        <td><span class="text-green">1.8%</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td>YOLOv8-OBB (Baseline)</td>
-                                        <td>DOTA Aerial Imagery</td>
-                                        <td>0.750</td>
-                                        <td>0.040</td>
-                                        <td>0.033</td>
-                                        <td>13.0 ms</td>
-                                        <td><span class="badge-pct low">8.0% (24/301)</span></td>
-                                        <td>4.2%</td>
-                                    </tr>
-                                    <tr>
-                                        <td>YOLOv9</td>
-                                        <td>COCO Dataset</td>
-                                        <td>0.035</td>
-                                        <td>0.003</td>
-                                        <td>0.000</td>
-                                        <td>48.0 ms</td>
-                                        <td><span class="badge-pct low">3.7% (3/80)</span></td>
-                                        <td>15.6%</td>
-                                    </tr>
-                                    <tr>
-                                        <td>YOLOv11</td>
-                                        <td>COCO Dataset</td>
-                                        <td>0.000</td>
-                                        <td>0.000</td>
-                                        <td>0.000</td>
-                                        <td>18.0 ms</td>
-                                        <td><span class="badge-pct zero">0.0% (0/80)</span></td>
-                                        <td>22.1%</td>
+                                        <td><span class="text-green">0.907</span></td>
+                                        <td>2.1 ms (GPU)</td>
+                                        <td colspan="2" style="text-align:left; color: var(--text-secondary); font-size: 0.85em;">
+                                            mAP50-95: 0.577. Measured on the real held-out validation split (2,600 images),
+                                            not simulated. Axis-aligned boxes (angle=0), not true oriented/rotated boxes --
+                                            the DUT Anti-UAV dataset provides axis-aligned annotations only.
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
+                            <p style="color: var(--text-secondary); font-size: 0.8em; margin-top: 8px;">
+                                Comparison rows against YOLOv8-OBB (DOTA-pretrained baseline), YOLOv9, and YOLOv11 have
+                                been removed: those models were never actually trained or evaluated in this project, and
+                                the numbers previously shown here were placeholder figures, not measurements. Only the
+                                model actually fine-tuned and evaluated above is shown.
+                            </p>
                         </div>
 
                         <div class="fine-tune-summary">
-                            <h4>DUT ANTI-UAV FINE-TUNING ROADMAP</h4>
+                            <h4>DUT ANTI-UAV FINE-TUNING RESULTS</h4>
                             <div class="progress-box">
                                 <div class="prog-label">
-                                    <span>DETECTION COVERAGE TARGET</span>
-                                    <span>84.5% ACHIEVED</span>
+                                    <span>RECALL (REAL, MEASURED ON VAL SPLIT)</span>
+                                    <span>86.8% ACHIEVED</span>
                                 </div>
                                 <div class="progress-bar">
-                                    <div class="progress-fill" style="width: 84.5%;"></div>
+                                    <div class="progress-fill" style="width: 86.8%;"></div>
                                 </div>
                             </div>
                             <p class="fine-tune-desc">
-                                Fine-tuning YOLOv8-OBB on 10,000 DUT Anti-UAV images transforms aerial DOTA pretraining into high-precision micro-drone classification, overcoming COCO model failures.
+                                Fine-tuning YOLOv8 on 10,000 DUT Anti-UAV images (5,200 train / 2,600 val / 2,200 test)
+                                achieved a real measured mAP50 of 0.907 and recall of 86.8% on the held-out validation
+                                split -- an axis-aligned single-class ("drone") detector, not a rotated-box (OBB) model,
+                                since the source dataset annotations are axis-aligned.
                             </p>
                         </div>
                     </div>
