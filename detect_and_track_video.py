@@ -42,10 +42,12 @@ try:
     from yolo_detector import OrientedBoundingBox
     from bytetrack_tracker import ByteTracker
     from sapient_protocol import SapientMessageBuilder
+    from kalman_filter import TrackKalmanFilterBank
 except ImportError:
     from src.yolo_detector import OrientedBoundingBox
     from src.bytetrack_tracker import ByteTracker
     from src.sapient_protocol import SapientMessageBuilder
+    from src.kalman_filter import TrackKalmanFilterBank
 
 
 def yolo_results_to_obbs(result, conf_thresh):
@@ -87,8 +89,10 @@ def yolo_results_to_obbs(result, conf_thresh):
     return obbs
 
 
-def draw_annotations(frame, tracks):
-    """Draws a box + track ID + confidence label for each active track on the frame."""
+def draw_annotations(frame, tracks, kf_states=None):
+    """Draws a box + track ID + confidence label for each active track on the frame,
+    plus a real Kalman-filter-predicted velocity vector arrow when available."""
+    kf_states = kf_states or {}
     for t in tracks:
         obb = t.obb
         x1 = int(obb.x_center - obb.width / 2)
@@ -104,6 +108,15 @@ def draw_annotations(frame, tracks):
         cv2.rectangle(frame, (x1, max(0, y1 - th - 8)), (x1 + tw + 4, y1), color, -1)
         cv2.putText(frame, label, (x1 + 2, max(12, y1 - 5)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2, cv2.LINE_AA)
+
+        # Real Kalman-filtered velocity vector (yellow arrow), scaled up for
+        # visibility -- shows the TKF's actual predicted direction/speed
+        kf = kf_states.get(t.track_id)
+        if kf is not None:
+            end_x = int(obb.x_center + kf["vx"] * 5)
+            end_y = int(obb.y_center + kf["vy"] * 5)
+            cv2.arrowedLine(frame, (int(obb.x_center), int(obb.y_center)),
+                             (end_x, end_y), (0, 255, 255), 2, tipLength=0.3)
     return frame
 
 
@@ -125,6 +138,12 @@ def main():
                          help="How far (in box-diagonals) a detection can be from a track's predicted "
                               "position and still count as the same object. Raise for fast/erratic motion, "
                               "lower if multiple close targets keep swapping IDs.")
+    parser.add_argument("--kf_process_noise", type=float, default=2.0,
+                         help="Kalman filter process noise std-dev (px/frame^2). Higher = trust the "
+                              "constant-velocity motion model less, adapt to raw detections faster.")
+    parser.add_argument("--kf_measurement_noise", type=float, default=3.0,
+                         help="Kalman filter measurement noise std-dev (px). Higher = trust the raw "
+                              "detector's box center less, smooth more heavily.")
     args = parser.parse_args()
 
     if not os.path.exists(args.video):
@@ -163,6 +182,15 @@ def main():
         search_radius_factor=args.search_radius_factor
     )
 
+    # Track Kalman Filter (TKF) -- real per-track state estimation/smoothing.
+    # Single-sensor (EO/IR only): see src/kalman_filter.py docstring for why
+    # this is not "multi-sensor fusion" despite the project's original goal
+    # of a TKF stage -- there is no second real sensor to fuse with here.
+    kf_bank = TrackKalmanFilterBank(
+        process_noise_std=args.kf_process_noise,
+        measurement_noise_std=args.kf_measurement_noise
+    )
+
     frame_records = []
     frame_id = 0
     t_start = time.time()
@@ -186,6 +214,12 @@ def main():
         obbs = yolo_results_to_obbs(results[0], args.conf)
         active_tracks = tracker.update(obbs)
 
+        # Track Kalman Filter step: real predict+update per active track,
+        # producing a smoothed position and a genuine velocity estimate
+        # (see src/kalman_filter.py for the standard KF math and a
+        # self-test proving it measurably reduces position noise).
+        kf_states = kf_bank.step(active_tracks)
+
         # Real SAPIENT-formatted sensor report from real EO/IR detections+tracks
         asm_eoir = SapientMessageBuilder.create_autonomous_sensor_report(
             "EOIR-CAM-01", "EO/IR_YOLOv8_FineTuned", [t.to_dict() for t in active_tracks]
@@ -196,11 +230,12 @@ def main():
             "inference_speed_ms": round(infer_ms, 1),
             "detections": [o.to_dict() for o in obbs],
             "tracks": [t.to_dict() for t in active_tracks],
+            "kalman_filter_states": kf_states,  # {track_id: {x,y,vx,vy,position_uncertainty_px,...}}
             "sapient_asm_eoir": asm_eoir
         })
 
         if writer is not None or args.show:
-            annotated = draw_annotations(frame.copy(), active_tracks)
+            annotated = draw_annotations(frame.copy(), active_tracks, kf_states)
             if writer is not None:
                 writer.write(annotated)
             if args.show:
