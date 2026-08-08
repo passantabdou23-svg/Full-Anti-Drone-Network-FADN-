@@ -28,16 +28,26 @@ Optional flags:
 import argparse
 import json
 import os
+import sys
 import time
 
 import cv2
 
+# Make src/ importable regardless of where this script is run from
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
+
 from ultralytics import YOLO
 
-from kalman_filter import TrackKalmanFilterBank
-from src.yolo_detector import OrientedBoundingBox
-from src.bytetrack_tracker import ByteTracker
-from src.sapient_protocol import SapientMessageBuilder
+try:
+    from yolo_detector import OrientedBoundingBox
+    from bytetrack_tracker import ByteTracker
+    from sapient_protocol import SapientMessageBuilder
+    from kalman_filter import TrackKalmanFilterBank
+except ImportError:
+    from src.yolo_detector import OrientedBoundingBox
+    from src.bytetrack_tracker import ByteTracker
+    from src.sapient_protocol import SapientMessageBuilder
+    from src.kalman_filter import TrackKalmanFilterBank
 
 
 def yolo_results_to_obbs(result, conf_thresh):

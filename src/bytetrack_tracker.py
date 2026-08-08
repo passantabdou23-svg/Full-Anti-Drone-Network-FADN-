@@ -24,6 +24,7 @@ detections are both within the search radius), but distance-to-prediction is
 now the primary matching criterion.
 """
 
+import numpy as np
 import math
 
 class STrack:
@@ -190,15 +191,6 @@ class ByteTracker:
     def update(self, detections):
         self.frame_id += 1
 
-        # Keep the tracks that were already lost before this frame separate
-        # from tracks that become lost during this update. Previously both
-        # groups were mixed in self.lost_stracks and an already-lost track's
-        # time_since_update was never incremented again. That made
-        # max_time_lost ineffective and allowed revival after an unlimited
-        # absence.
-        previously_lost = self.lost_stracks
-        self.lost_stracks = []
-
         det_high = []
         det_low = []
         for det in detections:
@@ -224,39 +216,26 @@ class ByteTracker:
         # 3) Tracks still unmatched after both passes -> try reviving from lost_stracks pool
         #    is handled below (lost tracks themselves try to match remaining high dets).
         #    For now, mark these as freshly lost.
-        newly_lost = []
         for track in still_unmatched_tracks:
             track.time_since_update += 1
             track.mark_lost()
             if track.time_since_update <= self.max_time_lost:
-                newly_lost.append(track)
+                self.lost_stracks.append(track)
             else:
                 track.mark_removed()
-                self.removed_stracks.append(track)
 
         # 4) Try to revive previously-lost tracks using any remaining unmatched high-conf detections
-        #    A track at exactly max_time_lost still gets this final revival
-        #    opportunity. Only another missed frame moves it past the limit.
-        alive_lost = [t for t in previously_lost
-                      if t.time_since_update <= self.max_time_lost]
+        #    (prune out anything that's exceeded max_time_lost first)
+        alive_lost = [t for t in self.lost_stracks if t.time_since_update <= self.max_time_lost]
         matched_revive, still_lost = self._try_match_pool(alive_lost, det_high)
+        revived_ids = set()
         for track, det in matched_revive:
             track.update(det, det.confidence, self.frame_id)
             output_stracks.append(track)
+            revived_ids.add(track.track_id)
 
-        # Tracks that were already lost and failed revival have now missed one
-        # more frame. Age them exactly once, retain those still inside the
-        # configured window, and permanently remove expired tracks.
-        surviving_lost = []
-        for track in still_lost:
-            track.time_since_update += 1
-            if track.time_since_update <= self.max_time_lost:
-                surviving_lost.append(track)
-            else:
-                track.mark_removed()
-                self.removed_stracks.append(track)
-
-        self.lost_stracks = newly_lost + surviving_lost
+        self.lost_stracks = [t for t in still_lost if t.track_id not in revived_ids
+                              and t.time_since_update <= self.max_time_lost]
 
         # 5) Any detections still unmatched after all of the above become brand-new tracks
         for det in det_high:
@@ -268,11 +247,7 @@ class ByteTracker:
 
 
 if __name__ == "__main__":
-    try:
-        from .yolo_detector import OrientedBoundingBox
-    except ImportError:
-        # Support direct execution with: python src/bytetrack_tracker.py
-        from yolo_detector import OrientedBoundingBox
+    from yolo_detector import OrientedBoundingBox
 
     # Simulate a small, fast-moving drone (30px/frame jump -- would break the
     # old pure-IoU matcher, since a 20x20 box moving 30px has zero overlap

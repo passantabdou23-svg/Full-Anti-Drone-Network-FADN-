@@ -54,38 +54,18 @@ a dashboard mockup. Being transparent about what's real:
 ```bash
 git clone https://github.com/<your-username>/<your-repo>.git
 cd <your-repo>
-python -m venv .venv
+python -m venv venv
 # Windows:
-.\.venv\Scripts\Activate.ps1
+.\venv\Scripts\Activate.ps1
 # macOS/Linux:
-source .venv/bin/activate
+source venv/bin/activate
 
-# Upgrade packaging tools inside the virtual environment.
-python -m pip install --upgrade pip
+pip install -r requirements.txt
 
-# Install PyTorch FIRST using the command generated for your OS and CPU/CUDA
-# platform at https://pytorch.org/get-started/locally/. For a CPU-only setup:
-python -m pip install torch torchvision
-
-# Install this project's direct runtime dependencies.
-python -m pip install -r requirements.txt
-
-# Verify imports and see whether PyTorch can use your GPU.
-python check_environment.py
+# PyTorch with CUDA (adjust cu-version to match your GPU driver; cu124 works
+# for most current NVIDIA GPUs as of 2026):
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 ```
-
-Use `--device cpu` when `check_environment.py` reports that CUDA is not
-available. For an NVIDIA GPU, use the CUDA-specific PyTorch command generated
-by the official PyTorch installer instead of guessing a CUDA wheel version.
-
-Run the focused regression suite before processing a video:
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-For the complete CPU/GPU, headless-server, dashboard, and verification steps,
-see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### 2. Run detection + tracking on your own video
 
@@ -141,11 +121,9 @@ python frames_to_video.py --frames_dir "path/to/img_folder" --out "./my_video.mp
 ├── prepare_dataset.py          # Converts DUT-Anti-UAV VOC XML → YOLO format
 ├── train_detector.py           # Fine-tunes YOLOv8 on the converted dataset
 ├── main_pipeline.py            # Legacy simulated demo pipeline (see table above)
-├── kalman_filter.py            # Per-track 2D constant-velocity Kalman filter
 ├── models/
 │   └── best.pt                 # Fine-tuned detector weights (real, trained)
 ├── src/
-│   ├── __init__.py             # Explicit Python package marker
 │   ├── yolo_detector.py        # OrientedBoundingBox class + detector benchmark data
 │   ├── bytetrack_tracker.py    # Motion-predicted tracker with lost-track revival
 │   ├── sapient_protocol.py     # NATO SAPIENT (STANAG 4810) message formatting
