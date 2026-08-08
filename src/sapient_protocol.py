@@ -202,7 +202,10 @@ class SapientMessageBuilder:
             obb = det.get("obb", det)  # STrack.to_dict() nests under "obb"
             reports.append(SapientMessageBuilder.create_detection_report(
                 node_id=sensor_id,
-                object_id=str(det.get("track_id", det.get("class_id", _new_id()))),
+                object_id=str(det.get(
+                    "sapient_object_id",
+                    det.get("identity_id", det.get("track_id", det.get("class_id", _new_id())))
+                )),
                 detection_confidence=det.get("score", obb.get("confidence", 0.0)),
                 x_center=obb.get("x_center", 0.0),
                 y_center=obb.get("y_center", 0.0),

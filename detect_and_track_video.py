@@ -37,6 +37,7 @@ from ultralytics import YOLO
 from kalman_filter import TrackKalmanFilterBank
 from src.yolo_detector import OrientedBoundingBox
 from src.bytetrack_tracker import ByteTracker
+from src.identity_resolver import IdentityResolver
 from src.sapient_protocol import SapientMessageBuilder
 
 
@@ -79,10 +80,15 @@ def yolo_results_to_obbs(result, conf_thresh):
     return obbs
 
 
-def draw_annotations(frame, tracks, kf_states=None):
-    """Draws a box + track ID + confidence label for each active track on the frame,
-    plus a real Kalman-filter-predicted velocity vector arrow when available."""
+def draw_annotations(frame, tracks, kf_states=None, identity_assignments=None):
+    """Draw boxes, operator-facing IDs and Kalman velocity vectors.
+
+    Low-level tracker IDs remain immutable.  Confirmed identities are green,
+    reidentified tracks are cyan, and unresolved temporary identities are
+    orange so the operator can see that verification is still in progress.
+    """
     kf_states = kf_states or {}
+    identity_assignments = identity_assignments or {}
     for t in tracks:
         obb = t.obb
         x1 = int(obb.x_center - obb.width / 2)
@@ -90,10 +96,22 @@ def draw_annotations(frame, tracks, kf_states=None):
         x2 = int(obb.x_center + obb.width / 2)
         y2 = int(obb.y_center + obb.height / 2)
 
-        color = (0, 220, 0)  # green
+        identity = identity_assignments.get(t.track_id, {})
+        status = identity.get("identity_status", "tracker_only")
+        if status == "provisional":
+            color = (0, 165, 255)  # orange
+            display_id = identity.get("display_id", f"TEMP-{t.track_id}")
+            label = f"{display_id} VERIFYING drone {t.score:.2f}"
+        elif status == "reidentified":
+            color = (255, 220, 0)  # cyan
+            display_id = identity.get("display_id", f"ID-{t.track_id}")
+            label = f"{display_id} RECOVERED drone {t.score:.2f}"
+        else:
+            color = (0, 220, 0)  # green
+            display_id = identity.get("display_id", f"ID-{t.track_id}")
+            label = f"{display_id} drone {t.score:.2f}"
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
-        label = f"ID {t.track_id} drone {t.score:.2f}"
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
         cv2.rectangle(frame, (x1, max(0, y1 - th - 8)), (x1 + tw + 4, y1), color, -1)
         cv2.putText(frame, label, (x1 + 2, max(12, y1 - 5)),
@@ -108,6 +126,30 @@ def draw_annotations(frame, tracks, kf_states=None):
             cv2.arrowedLine(frame, (int(obb.x_center), int(obb.y_center)),
                              (end_x, end_y), (0, 255, 255), 2, tipLength=0.3)
     return frame
+
+
+def serialize_identity_track(track, assignment):
+    """Preserve the internal track contract and add identity-layer fields."""
+
+    result = track.to_dict()
+    result["internal_track_id"] = int(track.track_id)
+    result.update(assignment)
+    result["sapient_object_id"] = assignment.get("display_id", f"ID-{track.track_id}")
+    return result
+
+
+def tracker_only_assignment(track):
+    """Backward-compatible identity shape when reconciliation is disabled."""
+
+    return {
+        "internal_track_id": int(track.track_id),
+        "identity_id": int(track.track_id),
+        "display_id": f"ID-{track.track_id}",
+        "identity_status": "tracker_only",
+        "provisional_id": None,
+        "identity_confidence": 1.0,
+        "identity_source": "low_level_tracker",
+    }
 
 
 def main():
@@ -134,6 +176,16 @@ def main():
     parser.add_argument("--kf_measurement_noise", type=float, default=3.0,
                          help="Kalman filter measurement noise std-dev (px). Higher = trust the raw "
                               "detector's box center less, smooth more heavily.")
+    parser.add_argument("--disable_identity_resolver", action="store_true",
+                         help="Disable provisional/dormant identity reconciliation and display raw tracker IDs.")
+    parser.add_argument("--identity_retention_seconds", type=float, default=10.0,
+                         help="Seconds to retain a dormant confirmed identity for possible re-identification.")
+    parser.add_argument("--identity_confirm_frames", type=int, default=8,
+                         help="Evidence frames collected before a temporary identity may be reconciled.")
+    parser.add_argument("--identity_max_provisional_frames", type=int, default=24,
+                         help="Maximum evidence frames before an unmatched temporary identity becomes permanent.")
+    parser.add_argument("--identity_match_threshold", type=float, default=0.62,
+                         help="Maximum hybrid match cost for restoring a dormant identity (lower is stricter).")
     args = parser.parse_args()
 
     if not os.path.exists(args.video):
@@ -181,6 +233,24 @@ def main():
         measurement_noise_std=args.kf_measurement_noise
     )
 
+    identity_resolver = None
+    if not args.disable_identity_resolver:
+        identity_resolver = IdentityResolver(
+            fps=fps,
+            retention_seconds=args.identity_retention_seconds,
+            confirm_frames=args.identity_confirm_frames,
+            max_provisional_frames=args.identity_max_provisional_frames,
+            match_threshold=args.identity_match_threshold,
+        )
+        print(
+            "Identity resolver: enabled "
+            f"(retention={identity_resolver.retention_frames} frames / "
+            f"{identity_resolver.retention_seconds:.1f}s, "
+            f"confirm={identity_resolver.confirm_frames} frames)"
+        )
+    else:
+        print("Identity resolver: disabled (raw tracker IDs only)")
+
     frame_records = []
     frame_id = 0
     t_start = time.time()
@@ -210,22 +280,40 @@ def main():
         # self-test proving it measurably reduces position noise).
         kf_states = kf_bank.step(active_tracks)
 
+        if identity_resolver is not None:
+            identity_assignments, identity_events = identity_resolver.step(
+                frame_id, frame, active_tracks, kf_states
+            )
+        else:
+            identity_assignments = {
+                track.track_id: tracker_only_assignment(track) for track in active_tracks
+            }
+            identity_events = []
+
+        identity_tracks = [
+            serialize_identity_track(track, identity_assignments[track.track_id])
+            for track in active_tracks
+        ]
+
         # Real SAPIENT-formatted sensor report from real EO/IR detections+tracks
         asm_eoir = SapientMessageBuilder.create_autonomous_sensor_report(
-            "EOIR-CAM-01", "EO/IR_YOLOv8_FineTuned", [t.to_dict() for t in active_tracks]
+            "EOIR-CAM-01", "EO/IR_YOLOv8_FineTuned", identity_tracks
         )
 
         frame_records.append({
             "frame_id": frame_id,
             "inference_speed_ms": round(infer_ms, 1),
             "detections": [o.to_dict() for o in obbs],
-            "tracks": [t.to_dict() for t in active_tracks],
+            "tracks": identity_tracks,
             "kalman_filter_states": kf_states,  # {track_id: {x,y,vx,vy,position_uncertainty_px,...}}
+            "identity_events": identity_events,
             "sapient_asm_eoir": asm_eoir
         })
 
         if writer is not None or args.show:
-            annotated = draw_annotations(frame.copy(), active_tracks, kf_states)
+            annotated = draw_annotations(
+                frame.copy(), active_tracks, kf_states, identity_assignments
+            )
             if writer is not None:
                 writer.write(annotated)
             if args.show:
@@ -247,7 +335,29 @@ def main():
 
     total_elapsed = time.time() - t_start
     total_dets = sum(len(f["detections"]) for f in frame_records)
-    total_tracks_seen = max((t["track_id"] for f in frame_records for t in f["tracks"]), default=0)
+    internal_track_ids = {
+        t["internal_track_id"] for f in frame_records for t in f["tracks"]
+    }
+    total_tracks_seen = len(internal_track_ids)
+
+    if identity_resolver is not None:
+        final_events = identity_resolver.finalize(frame_id)
+        if final_events and frame_records:
+            frame_records[-1]["identity_events"].extend(final_events)
+        for frame_record in frame_records:
+            frame_record["tracks"] = [
+                identity_resolver.apply_final_alias(track)
+                for track in frame_record["tracks"]
+            ]
+        identity_summary = identity_resolver.summary()
+    else:
+        identity_summary = {
+            "confirmed_identity_count": total_tracks_seen,
+            "temporary_identity_count": 0,
+            "temporal_model": "disabled",
+            "identity_aliases": {},
+            "event_counts": {},
+        }
 
     json_out_path = os.path.join(args.out, "detections_tracks.json")
     export = {
@@ -259,8 +369,11 @@ def main():
             "total_processing_time_s": round(total_elapsed, 1),
             "avg_fps_processing": round(frame_id / total_elapsed, 1) if total_elapsed > 0 else 0,
             "total_detections": total_dets,
-            "unique_tracks_seen": total_tracks_seen
+            "unique_tracks_seen": total_tracks_seen,
+            "unique_internal_tracks_seen": total_tracks_seen,
+            "unique_confirmed_identities": identity_summary["confirmed_identity_count"]
         },
+        "identity_summary": identity_summary,
         "frames": frame_records
     }
     with open(json_out_path, "w") as f:
@@ -270,7 +383,10 @@ def main():
     print("DONE")
     print(f"  Frames processed: {frame_id}")
     print(f"  Total detections: {total_dets}")
-    print(f"  Unique tracks seen: {total_tracks_seen}")
+    print(f"  Unique internal tracks seen: {total_tracks_seen}")
+    print(f"  Confirmed identities: {identity_summary['confirmed_identity_count']}")
+    print(f"  Temporary identities created: {identity_summary['temporary_identity_count']}")
+    print(f"  Re-identifications: {identity_summary['event_counts'].get('identity_reidentified', 0)}")
     print(f"  Processing speed: {frame_id / total_elapsed:.1f} FPS" if total_elapsed > 0 else "")
     if writer is not None:
         print(f"  Annotated video saved to: {os.path.join(args.out, 'annotated_video.mp4')}")
