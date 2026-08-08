@@ -101,10 +101,12 @@ class TrackKalmanFilterBank:
     Manages one TrackKalmanFilter per active track_id, so multiple
     simultaneous drones each get independently filtered.
     """
-    def __init__(self, process_noise_std=2.0, measurement_noise_std=3.0):
+    def __init__(self, process_noise_std=2.0, measurement_noise_std=3.0,
+                 max_frames_without_detection=30):
         self.filters = {}
         self.process_noise_std = process_noise_std
         self.measurement_noise_std = measurement_noise_std
+        self.max_frames_without_detection = max_frames_without_detection
 
     def step(self, active_tracks):
         """
@@ -112,11 +114,18 @@ class TrackKalmanFilterBank:
         (matches STrack from bytetrack_tracker.py). Returns a dict of
         {track_id: TrackKalmanFilter.get_state()} for every track seen this call.
         Filters for tracks not present this frame are predict()-only advanced
-        (bridging brief gaps) but not returned, and are dropped after 30
-        frames with no update to avoid unbounded memory growth.
+        (bridging brief gaps) but not returned, and are dropped after
+        max_frames_without_detection frames with no update to avoid unbounded
+        memory growth.
         """
         seen_ids = set()
         results = {}
+
+        # Advance every existing filter exactly once per video frame. The old
+        # implementation predicted only filters that also had a measurement,
+        # so missing tracks neither moved forward nor accumulated stale age.
+        for track_filter in self.filters.values():
+            track_filter.predict()
 
         for t in active_tracks:
             tid = t.track_id
@@ -128,14 +137,14 @@ class TrackKalmanFilterBank:
                     mx, my, self.process_noise_std, self.measurement_noise_std
                 )
             else:
-                self.filters[tid].predict()
                 self.filters[tid].update(mx, my)
 
             results[tid] = self.filters[tid].get_state()
 
         # Drop stale filters (track gone for a long time) to avoid memory growth
         stale = [tid for tid, f in self.filters.items()
-                 if tid not in seen_ids and f.frames_since_update > 30]
+                 if tid not in seen_ids
+                 and f.frames_since_update > self.max_frames_without_detection]
         for tid in stale:
             del self.filters[tid]
 

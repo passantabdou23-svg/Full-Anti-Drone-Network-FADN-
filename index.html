@@ -20,25 +20,25 @@
                     <span class="star-icon">✦</span> SAPIENT-INSPIRED MESSAGING (STANREC 4869 / BSI Flex 335)
                 </div>
                 <h1 class="header-title">COUNTER-UAS DEFENSE COMMAND CENTER</h1>
-                <div class="header-sub">YOLOv8-OBB Visual/Thermal Detection • ByteTrack • 3D Pulse-Doppler Radar Fusion</div>
+                <div class="header-sub" id="data-source-summary">Loading detection feed...</div>
             </div>
 
             <div class="system-status-group">
                 <div class="status-badge" id="defcon-badge">
-                    <span class="badge-label">DEFCON LEVEL</span>
-                    <span class="badge-value defcon-2">LEVEL 2 (ALERT)</span>
+                    <span class="badge-label">DATA MODE</span>
+                    <span class="badge-value" id="data-mode-value">LOADING</span>
                 </div>
                 <div class="status-badge">
                     <span class="badge-label">YOLO MODEL</span>
-                    <span class="badge-value model-active">YOLOv8-OBB (Fine-Tuned)</span>
+                    <span class="badge-value model-active">YOLOv8 DRONE DETECTOR</span>
                 </div>
                 <div class="status-badge">
-                    <span class="badge-label">FUSION ENGINE</span>
-                    <span class="badge-value fusion-online">EKF FUSED (ACTIVE)</span>
+                    <span class="badge-label">SENSOR MODE</span>
+                    <span class="badge-value fusion-online" id="sensor-mode-value">LOADING</span>
                 </div>
                 <div class="time-display">
                     <div id="utc-clock">17:48:00 UTC</div>
-                    <div class="coords">34°03'07.9"N 118°14'37.3"W</div>
+                    <div class="coords" id="coordinate-status">NO GEOREFERENCE</div>
                 </div>
             </div>
         </header>
@@ -60,8 +60,8 @@
                     <!-- DUAL EO/IR CAMERA CANVAS -->
                     <div class="feed-box camera-box">
                         <div class="feed-overlay">
-                            <span class="feed-name" id="camera-feed-label">EO CAMERA 01 (RGB DAY) • 1080p60</span>
-                            <span class="fps-tag" id="fps-counter">60 FPS | 13.2 ms</span>
+                            <span class="feed-name" id="camera-feed-label">EO/IR TRACK GEOMETRY VIEW</span>
+                            <span class="fps-tag" id="fps-counter">WAITING FOR DATA</span>
                         </div>
                         <canvas id="camera-canvas" width="640" height="360"></canvas>
                         <div class="box-corner tl"></div><div class="box-corner tr"></div>
@@ -71,8 +71,8 @@
                     <!-- 3D RADAR PPI SCOPE CANVAS -->
                     <div class="feed-box radar-box">
                         <div class="feed-overlay">
-                            <span class="feed-name">3D PULSE-DOPPLER RADAR • AN/TPQ-50 MASTER</span>
-                            <span class="radar-range-tag">MAX RANGE: 10,000 M</span>
+                            <span class="feed-name" id="radar-feed-label">RADAR INPUT</span>
+                            <span class="radar-range-tag" id="radar-status">WAITING FOR DATA</span>
                         </div>
                         <canvas id="radar-canvas" width="360" height="360"></canvas>
                         <div class="box-corner tl"></div><div class="box-corner tr"></div>
@@ -85,12 +85,12 @@
                     <div class="aux-card">
                         <div class="aux-title">RF EMISSION SPECTRUM (2.4GHz / 5.8GHz)</div>
                         <canvas id="rf-canvas" width="300" height="40"></canvas>
-                        <div class="aux-val">TELEMETRY DETECTED (SNR: 18.4 dB)</div>
+                        <div class="aux-val" id="rf-status">WAITING FOR DATA</div>
                     </div>
                     <div class="aux-card">
                         <div class="aux-title">ACOUSTIC BLADE PASS FREQUENCY (BPF)</div>
                         <canvas id="acoustic-canvas" width="300" height="40"></canvas>
-                        <div class="aux-val">4-BLADE ROTOR HARMONIC MATCHED</div>
+                        <div class="aux-val" id="acoustic-status">WAITING FOR DATA</div>
                     </div>
                 </div>
             </section>
@@ -100,9 +100,9 @@
                 <div class="panel-header">
                     <h2><span class="layer-tag">LAYER 2</span> SENSOR FUSION ENGINE (UNIFIED PICTURE)</h2>
                     <div class="fusion-mode-switch">
-                        <button class="btn-fusion" id="btn-eo-only">EO/IR Only</button>
+                        <button class="btn-fusion active" id="btn-eo-only">EO/IR Only</button>
                         <button class="btn-fusion" id="btn-radar-only">Radar Only</button>
-                        <button class="btn-fusion active" id="btn-fused-mode">SAPIENT Fused</button>
+                        <button class="btn-fusion" id="btn-fused-mode">Multi-Sensor</button>
                     </div>
                 </div>
 
@@ -110,7 +110,7 @@
                 <div class="fusion-map-container">
                     <div class="fusion-map-overlay">
                         <div class="map-stat">FUSED TRACKS: <span id="fused-count">2 ACTIVE</span></div>
-                        <div class="map-stat">FALSE ALARM RATE (FAR): <span id="far-rate" class="highlight-green">1.8%</span></div>
+                        <div class="map-stat">FALSE ALARM RATE (FAR): <span id="far-rate" class="highlight-green">N/A</span></div>
                     </div>
                     <canvas id="fusion-map-canvas" width="580" height="240"></canvas>
                 </div>
@@ -145,61 +145,60 @@
                 <!-- AI THREAT CLASSIFICATION CARD -->
                 <div class="threat-card" id="active-threat-card">
                     <div class="threat-header">
-                        <span class="threat-class-title" id="threat-title">MILITARY MICRO-DRONE (QUADROTOR)</span>
-                        <span class="threat-alert-pill critical" id="threat-pill">CRITICAL THREAT</span>
+                        <span class="threat-class-title" id="threat-title">NO ACTIVE TRACK</span>
+                        <span class="threat-alert-pill" id="threat-pill">AWAITING DATA</span>
                     </div>
                     <div class="threat-metrics">
                         <div class="t-metric">
                             <span class="t-lbl">TARGET TRACK</span>
-                            <span class="t-val" id="threat-track-id">UTP-TRK-101</span>
+                            <span class="t-val" id="threat-track-id">N/A</span>
                         </div>
                         <div class="t-metric">
                             <span class="t-lbl">ESTIMATED RANGE</span>
-                            <span class="t-val" id="threat-range">1,010 m</span>
+                            <span class="t-val" id="threat-range">N/A</span>
                         </div>
                         <div class="t-metric">
                             <span class="t-lbl">YOLO OBB CONF</span>
-                            <span class="t-val" id="threat-conf">94.8%</span>
+                            <span class="t-val" id="threat-conf">N/A</span>
                         </div>
                         <div class="t-metric">
                             <span class="t-lbl">BYTE TRACK ID</span>
-                            <span class="t-val" id="threat-bytetrack">#TRK-01</span>
+                            <span class="t-val" id="threat-bytetrack">N/A</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- EFFECTOR RESPONSE CONTROLS -->
                 <div class="effector-section">
-                    <h3 class="section-subtitle">EFFECTOR CONTROL NODES (SAPIENT STANDARD)</h3>
+                    <h3 class="section-subtitle" id="effector-status">RESEARCH UI ONLY — NO EFFECTOR HARDWARE CONNECTED</h3>
                     <div class="effector-buttons">
                         <button class="btn-effector jammer" id="btn-effect-ew">
-                            <span class="eff-icon">⚡</span>
+                            <span class="eff-icon">[EW]</span>
                             <div class="eff-info">
-                                <span class="eff-name">ELECTRONIC WARFARE (EW)</span>
+                                <span class="eff-name">SIMULATE ELECTRONIC WARFARE</span>
                                 <span class="eff-type">RF Soft-Kill Jamming & Spoofing</span>
                             </div>
                         </button>
 
                         <button class="btn-effector laser" id="btn-effect-laser">
-                            <span class="eff-icon">🎯</span>
+                            <span class="eff-icon">[HEL]</span>
                             <div class="eff-info">
-                                <span class="eff-name">DIRECTED ENERGY (HEL)</span>
+                                <span class="eff-name">SIMULATE DIRECTED ENERGY</span>
                                 <span class="eff-type">High-Energy Laser Neutralization</span>
                             </div>
                         </button>
 
                         <button class="btn-effector kinetic" id="btn-effect-kinetic">
-                            <span class="eff-icon">🚀</span>
+                            <span class="eff-icon">[KIN]</span>
                             <div class="eff-info">
-                                <span class="eff-name">KINETIC INTERCEPTOR</span>
+                                <span class="eff-name">SIMULATE KINETIC INTERCEPTOR</span>
                                 <span class="eff-type">Counter-UAS Missile / Interceptor</span>
                             </div>
                         </button>
                     </div>
 
                     <div class="engagement-log" id="engagement-log-box">
-                        <div class="log-entry sys">[17:48:02] System initialized. NATO SAPIENT SAPIENT-C2 Online.</div>
-                        <div class="log-entry warn">[17:48:05] Target UTP-TRK-101 classified as Drone via YOLOv8-OBB.</div>
+                        <div class="log-entry sys">Dashboard initialized. Waiting for feed capability metadata.</div>
                     </div>
                 </div>
             </section>

@@ -26,13 +26,8 @@ http://localhost:PORT, not file://) to see real results.
 import argparse
 import json
 import os
-import sys
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
-try:
-    from sapient_protocol import SapientMessageBuilder
-except ImportError:
-    from src.sapient_protocol import SapientMessageBuilder
+from src.sapient_protocol import SapientMessageBuilder
 
 
 def convert_frame(frame):
@@ -81,11 +76,24 @@ def main():
         data = json.load(f)
 
     frames = [convert_frame(f) for f in data["frames"]]
+    video_source = data.get("metadata", {}).get("video_source")
     output = {
         "metadata": {
+            "feed_type": "real_eoir",
             "source": "REAL pipeline output (detect_and_track_video.py)",
-            "original_video": data.get("metadata", {}).get("video_source"),
-            "note": "radar_detections is always empty and fused_threat_picture uses EO/IR only -- no radar/RF/acoustic sensor exists in this pipeline"
+            # The dashboard is browser-served, so do not expose an absolute
+            # workstation path in its public JSON payload.
+            "original_video": os.path.basename(video_source) if video_source else None,
+            "note": "radar_detections is always empty and fused_threat_picture uses EO/IR only -- no radar/RF/acoustic sensor exists in this pipeline",
+            "capabilities": {
+                "eoir": True,
+                "radar": False,
+                "rf": False,
+                "acoustic": False,
+                "multi_sensor_fusion": False,
+                "georeferencing": False,
+                "effector_control": False
+            }
         },
         "frames": frames
     }
