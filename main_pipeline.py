@@ -4,27 +4,16 @@ Combines YOLOv8-OBB, ByteTrack, 3D Radar Simulation, EKF Sensor Fusion, and NATO
 Outputs benchmark evaluations and exports simulation dataset feeds for the Web Dashboard.
 """
 
-import sys
 import os
 import json
 import time
 import math
 
-# Ensure src directory is in path for both IDE PyLance and runtime
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
-
-try:
-    from yolo_detector import YoloDetectorEngine
-    from bytetrack_tracker import ByteTracker
-    from radar_simulator import RadarSimulatorEngine
-    from sensor_fusion import SensorFusionEngine
-    from sapient_protocol import SapientMessageBuilder
-except ImportError:
-    from src.yolo_detector import YoloDetectorEngine
-    from src.bytetrack_tracker import ByteTracker
-    from src.radar_simulator import RadarSimulatorEngine
-    from src.sensor_fusion import SensorFusionEngine
-    from src.sapient_protocol import SapientMessageBuilder
+from src.yolo_detector import YoloDetectorEngine
+from src.bytetrack_tracker import ByteTracker
+from src.radar_simulator import RadarSimulatorEngine
+from src.sensor_fusion import SensorFusionEngine
+from src.sapient_protocol import SapientMessageBuilder
 
 def run_main_pipeline():
     print("=" * 80)
@@ -128,11 +117,21 @@ def run_main_pipeline():
     output_feed_path = os.path.join(os.path.dirname(__file__), "simulation_feed.json")
     export_data = {
         "metadata": {
+            "feed_type": "simulation",
             "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
             "system": "NATO SAPIENT Counter-UAS Multi-Sensor Pipeline",
             "yolo_model": "YOLOv8-OBB (Fine-Tuned DUT Anti-UAV)",
             "tracker": "ByteTrack",
-            "radar": "3D Pulse-Doppler Millimeter Wave Radar"
+            "radar": "3D Pulse-Doppler Millimeter Wave Radar",
+            "capabilities": {
+                "eoir": True,
+                "radar": True,
+                "rf": True,
+                "acoustic": True,
+                "multi_sensor_fusion": True,
+                "georeferencing": False,
+                "effector_control": False
+            }
         },
         "benchmarks": detector.benchmark_data,
         "fusion_metrics": fusion_engine.get_fusion_metrics(),

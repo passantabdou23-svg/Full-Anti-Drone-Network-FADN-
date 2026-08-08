@@ -1,17 +1,27 @@
 /**
  * NATO SAPIENT Counter-UAS Military Command Center Application Logic.
- * Controls Radar PPI scope, Dual EO/IR YOLOv8-OBB Canvas, ByteTrack tracks,
- * Sensor Fusion Engine, Effector Engagement, and SAPIENT Protocol Inspector.
+ * Renders the capabilities declared by the loaded feed. Hardware-dependent
+ * views remain disabled when the feed contains EO/IR data only.
  */
 
 document.addEventListener("DOMContentLoaded", () => {
     // -------------------------------------------------------------------------
     // STATE & VARIABLES
     // -------------------------------------------------------------------------
-    let simulationData = null;
+    let feedData = null;
     let currentFrameIdx = 0;
     let isNightIRMode = false;
-    let fusionMode = "FUSED"; // "EO", "RADAR", "FUSED"
+    let fusionMode = "EO"; // "EO", "RADAR", "FUSED"
+    let feedType = "unknown";
+    let capabilities = {
+        eoir: false,
+        radar: false,
+        rf: false,
+        acoustic: false,
+        multi_sensor_fusion: false,
+        georeferencing: false,
+        effector_control: false
+    };
     
     // Canvas Elements
     const cameraCanvas = document.getElementById("camera-canvas");
@@ -45,11 +55,17 @@ document.addEventListener("DOMContentLoaded", () => {
         
         try {
             const response = await fetch('simulation_feed.json');
-            simulationData = await response.json();
-            console.log("Loaded simulation feed:", simulationData);
+            if (!response.ok) throw new Error(`Feed request failed: HTTP ${response.status}`);
+            feedData = await response.json();
+            console.log("Loaded dashboard feed:", feedData);
         } catch (e) {
-            console.warn("Using inline fallback simulation dataset:", e);
-            simulationData = generateFallbackDataset();
+            console.warn("Using clearly-labelled inline simulation feed:", e);
+            feedData = generateFallbackDataset();
+        }
+
+        configureDashboard(feedData);
+        if (feedData.frames && feedData.frames.length > 0) {
+            updateUIForFrame(feedData.frames[0]);
         }
 
         // Start render loops
@@ -75,14 +91,14 @@ document.addEventListener("DOMContentLoaded", () => {
             isNightIRMode = false;
             document.getElementById("btn-mode-rgb").classList.add("active");
             document.getElementById("btn-mode-ir").classList.remove("active");
-            document.getElementById("camera-feed-label").textContent = "EO CAMERA 01 (RGB DAY) • 1080p60";
+            document.getElementById("camera-feed-label").textContent = "EO TRACK GEOMETRY VIEW";
         });
         
         document.getElementById("btn-mode-ir").addEventListener("click", (e) => {
             isNightIRMode = true;
             document.getElementById("btn-mode-ir").classList.add("active");
             document.getElementById("btn-mode-rgb").classList.remove("active");
-            document.getElementById("camera-feed-label").textContent = "IR CAMERA 01 (FLIR THERMAL) • 60 FPS";
+            document.getElementById("camera-feed-label").textContent = "THERMAL PALETTE VISUALIZATION (NOT A LIVE IR SENSOR)";
         });
 
         // Fusion Mode Switch
@@ -111,35 +127,101 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function setFusionMode(mode) {
+    function configureDashboard(data) {
+        const metadata = data.metadata || {};
+        const frames = data.frames || [];
+        const declared = metadata.capabilities || {};
+        const hasRadarData = frames.some(frame => (frame.radar_detections || []).length > 0);
+        const hasMultiSensorData = frames.some(frame =>
+            (frame.fused_threat_picture || []).some(track =>
+                (track.sensor_sources || []).length > 1
+            )
+        );
+
+        feedType = metadata.feed_type ||
+            ((metadata.source || "").startsWith("REAL") ? "real_eoir" : "simulation");
+        capabilities = {
+            eoir: declared.eoir ?? true,
+            radar: declared.radar ?? hasRadarData,
+            rf: declared.rf ?? false,
+            acoustic: declared.acoustic ?? false,
+            multi_sensor_fusion: declared.multi_sensor_fusion ?? hasMultiSensorData,
+            georeferencing: declared.georeferencing ?? false,
+            effector_control: declared.effector_control ?? false
+        };
+
+        const isSimulation = feedType === "simulation";
+        document.getElementById("data-mode-value").textContent =
+            isSimulation ? "SIMULATION" : "REAL EO/IR OUTPUT";
+        document.getElementById("data-source-summary").textContent = isSimulation
+            ? "SIMULATED SENSOR FEED — NO LIVE HARDWARE"
+            : "REAL YOLO DETECTIONS • BYTETRACK • SINGLE-SENSOR EO/IR";
+        document.getElementById("sensor-mode-value").textContent =
+            capabilities.multi_sensor_fusion ? "SIMULATED MULTI-SENSOR" : "EO/IR ONLY";
+        document.getElementById("coordinate-status").textContent =
+            capabilities.georeferencing ? "GEOREFERENCED" : "NO GEOREFERENCE";
+
+        document.getElementById("radar-feed-label").textContent = capabilities.radar
+            ? "SIMULATED 3D RADAR" : "RADAR INPUT";
+        document.getElementById("radar-status").textContent = capabilities.radar
+            ? "SIMULATED DATA" : "NO RADAR DATA";
+        document.getElementById("rf-status").textContent = capabilities.rf
+            ? "SIMULATED RF SIGNATURE" : "NO RF SENSOR DATA";
+        document.getElementById("acoustic-status").textContent = capabilities.acoustic
+            ? "SIMULATED ACOUSTIC SIGNATURE" : "NO ACOUSTIC SENSOR DATA";
+
+        document.getElementById("btn-radar-only").disabled = !capabilities.radar;
+        document.getElementById("btn-fused-mode").disabled = !capabilities.multi_sensor_fusion;
+
+        const simulationControlsEnabled = isSimulation;
+        document.querySelectorAll(".btn-effector").forEach(button => {
+            button.disabled = !simulationControlsEnabled;
+        });
+        document.getElementById("effector-status").textContent = simulationControlsEnabled
+            ? "UI SIMULATION CONTROLS — NO COMMANDS LEAVE THIS BROWSER"
+            : "NO EFFECTOR HARDWARE OR COMMAND CHANNEL CONNECTED";
+
+        setFusionMode(capabilities.multi_sensor_fusion ? "FUSED" : "EO", false);
+        logMessage(isSimulation
+            ? "Simulation feed loaded. All sensor and effector activity is synthetic."
+            : "Real EO/IR result feed loaded. Radar, RF, acoustic, fusion, and effectors are unavailable.", "sys");
+    }
+
+    function setFusionMode(mode, shouldLog = true) {
+        if (mode === "RADAR" && !capabilities.radar) return;
+        if (mode === "FUSED" && !capabilities.multi_sensor_fusion) return;
+
         fusionMode = mode;
         document.querySelectorAll(".btn-fusion").forEach(btn => btn.classList.remove("active"));
         if (mode === "EO") document.getElementById("btn-eo-only").classList.add("active");
         if (mode === "RADAR") document.getElementById("btn-radar-only").classList.add("active");
         if (mode === "FUSED") document.getElementById("btn-fused-mode").classList.add("active");
 
-        const farElem = document.getElementById("far-rate");
-        if (mode === "EO") farElem.textContent = "14.2% (HIGH UNFILTERED FAR)";
-        if (mode === "RADAR") farElem.textContent = "8.6% (CLUTTER NOISE)";
-        if (mode === "FUSED") farElem.textContent = "1.8% (SAPIENT EKF FILTERED)";
+        const measuredFar = feedData && feedData.fusion_metrics
+            ? feedData.fusion_metrics.false_alarm_rate_pct
+            : null;
+        document.getElementById("far-rate").textContent =
+            measuredFar != null ? `${measuredFar}% (FEED VALUE)` : "N/A (NOT MEASURED)";
         
-        logMessage(`Fusion mode switched to: ${mode}`, "sys");
+        if (shouldLog) logMessage(`Display mode switched to: ${mode}`, "sys");
     }
 
     function advanceFrame() {
-        if (!simulationData || !simulationData.frames) return;
-        currentFrameIdx = (currentFrameIdx + 1) % simulationData.frames.length;
-        updateUIForFrame(simulationData.frames[currentFrameIdx]);
+        if (!feedData || !feedData.frames || feedData.frames.length === 0) return;
+        currentFrameIdx = (currentFrameIdx + 1) % feedData.frames.length;
+        updateUIForFrame(feedData.frames[currentFrameIdx]);
     }
 
     // -------------------------------------------------------------------------
     // RENDER LOOP (CANVAS ANIMATIONS)
     // -------------------------------------------------------------------------
     function renderLoop() {
-        radarSweepAngle = (radarSweepAngle + 0.03) % (Math.PI * 2);
+        if (capabilities.radar) {
+            radarSweepAngle = (radarSweepAngle + 0.03) % (Math.PI * 2);
+        }
         
-        const frameData = (simulationData && simulationData.frames) ? 
-            simulationData.frames[currentFrameIdx] : null;
+        const frameData = (feedData && feedData.frames) ?
+            feedData.frames[currentFrameIdx] : null;
 
         drawEOIRCamera(frameData);
         drawRadarScope(frameData);
@@ -303,6 +385,15 @@ document.addEventListener("DOMContentLoaded", () => {
         radarCtx.fillStyle = '#020a05';
         radarCtx.fillRect(0, 0, w, h);
 
+        if (!capabilities.radar) {
+            radarCtx.fillStyle = '#8492a6';
+            radarCtx.font = "bold 14px Orbitron, monospace";
+            radarCtx.textAlign = "center";
+            radarCtx.fillText("NO RADAR DATA", cx, cy);
+            radarCtx.textAlign = "start";
+            return;
+        }
+
         // Range Rings (10km, 5km, 2.5km)
         radarCtx.strokeStyle = 'rgba(0, 255, 136, 0.25)';
         radarCtx.lineWidth = 1;
@@ -407,7 +498,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 fusionCtx.stroke();
             }
 
-            if (fusionMode === "FUSED" || fusionMode === "RADAR") {
+            if (capabilities.radar && (fusionMode === "FUSED" || fusionMode === "RADAR")) {
                 fusionCtx.strokeStyle = 'rgba(0, 255, 136, 0.5)';
                 fusionCtx.beginPath();
                 fusionCtx.moveTo(w - 40, h - 20); // Radar Origin
@@ -449,9 +540,14 @@ document.addEventListener("DOMContentLoaded", () => {
         rfCtx.strokeStyle = '#ffaa00';
         rfCtx.lineWidth = 1.5;
         rfCtx.beginPath();
-        for (let x = 0; x < rfw; x += 3) {
-            const y = rfh/2 + Math.sin(x * 0.1 + Date.now() * 0.01) * 12 * Math.random();
-            if (x === 0) rfCtx.moveTo(x, y); else rfCtx.lineTo(x, y);
+        if (capabilities.rf) {
+            for (let x = 0; x < rfw; x += 3) {
+                const y = rfh/2 + Math.sin(x * 0.1 + Date.now() * 0.01) * 12 * Math.random();
+                if (x === 0) rfCtx.moveTo(x, y); else rfCtx.lineTo(x, y);
+            }
+        } else {
+            rfCtx.moveTo(0, rfh / 2);
+            rfCtx.lineTo(rfw, rfh / 2);
         }
         rfCtx.stroke();
 
@@ -464,9 +560,14 @@ document.addEventListener("DOMContentLoaded", () => {
         acousticCtx.strokeStyle = '#00ff88';
         acousticCtx.lineWidth = 1.5;
         acousticCtx.beginPath();
-        for (let x = 0; x < aw; x += 3) {
-            const y = ah/2 + Math.cos(x * 0.15 + Date.now() * 0.012) * 10;
-            if (x === 0) acousticCtx.moveTo(x, y); else acousticCtx.lineTo(x, y);
+        if (capabilities.acoustic) {
+            for (let x = 0; x < aw; x += 3) {
+                const y = ah/2 + Math.cos(x * 0.15 + Date.now() * 0.012) * 10;
+                if (x === 0) acousticCtx.moveTo(x, y); else acousticCtx.lineTo(x, y);
+            }
+        } else {
+            acousticCtx.moveTo(0, ah / 2);
+            acousticCtx.lineTo(aw, ah / 2);
         }
         acousticCtx.stroke();
     }
@@ -478,7 +579,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!frameData) return;
 
         // FPS / Speed Tag
-        document.getElementById("fps-counter").textContent = `60 FPS | ${frameData.inference_speed_ms} ms`;
+        document.getElementById("fps-counter").textContent =
+            `FRAME ${frameData.frame_id} | INFERENCE ${frameData.inference_speed_ms} ms`;
 
         // Update Matrix Table
         const tbody = document.getElementById("fusion-table-body");
@@ -510,7 +612,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 document.getElementById("threat-track-id").textContent = topUtp.fused_id;
                 document.getElementById("threat-range").textContent = topRangeDisplay;
                 document.getElementById("threat-conf").textContent = `${(topUtp.confidence_score*100).toFixed(1)}%`;
-                document.getElementById("threat-bytetrack").textContent = `#TRK-${topUtp.eo_track_id || "01"}`;
+                document.getElementById("threat-bytetrack").textContent =
+                    topUtp.eo_track_id != null ? `#TRK-${topUtp.eo_track_id}` : "N/A";
+                const pill = document.getElementById("threat-pill");
+                pill.textContent = feedType === "simulation" ? "SIMULATED TRACK" : "DETECTED TRACK";
+                pill.classList.toggle("critical",
+                    feedType === "simulation" && topUtp.threat_level === "CRITICAL");
+            } else {
+                document.getElementById("threat-title").textContent = "NO ACTIVE TRACK";
+                document.getElementById("threat-track-id").textContent = "N/A";
+                document.getElementById("threat-range").textContent = "N/A";
+                document.getElementById("threat-conf").textContent = "N/A";
+                document.getElementById("threat-bytetrack").textContent = "N/A";
+                document.getElementById("threat-pill").textContent = "NO DETECTION";
             }
         }
 
@@ -525,18 +639,21 @@ document.addEventListener("DOMContentLoaded", () => {
     // EFFECTOR ACTIONS (EW JAMMER, LASER, KINETIC)
     // -------------------------------------------------------------------------
     function triggerEWJammer() {
+        if (feedType !== "simulation") return;
         activeJammerPulse = 1.0;
-        logMessage("[EFFECTOR TASKED] Electronic Warfare (RF Soft-Kill Jamming 2.4/5.8GHz) Initiated. Control telemetry severed.", "warn");
+        logMessage("[UI SIMULATION] EW visualization triggered. No command was sent and no telemetry was affected.", "warn");
     }
 
     function triggerLaserNeutralize() {
+        if (feedType !== "simulation") return;
         activeLaserTarget = { x: 320, y: 140 };
-        logMessage("[EFFECTOR TASKED] High-Energy Laser (HEL) Fired. Thermal target destruction confirmed.", "critical");
+        logMessage("[UI SIMULATION] Directed-energy visualization triggered. No hardware fired and no outcome is claimed.", "warn");
         setTimeout(() => { activeLaserTarget = null; }, 2500);
     }
 
     function triggerKineticInterceptor() {
-        logMessage("[EFFECTOR TASKED] Counter-UAS Kinetic Interceptor Missile Launched. Vector locked to target UTP-TRK-101.", "critical");
+        if (feedType !== "simulation") return;
+        logMessage("[UI SIMULATION] Kinetic-response log event created. No interceptor was launched.", "warn");
     }
 
     function logMessage(msg, type = "sys") {
@@ -551,6 +668,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function generateFallbackDataset() {
         return {
+            metadata: {
+                feed_type: "simulation",
+                source: "INLINE FALLBACK SIMULATION",
+                capabilities: {
+                    eoir: true,
+                    radar: true,
+                    rf: true,
+                    acoustic: true,
+                    multi_sensor_fusion: true,
+                    georeferencing: false,
+                    effector_control: false
+                }
+            },
             frames: [
                 {
                     frame_id: 1,
