@@ -72,6 +72,36 @@ outputs are:
 - `video_results/annotated_video.mp4`
 - `video_results/detections_tracks.json`
 
+Identity reconciliation is enabled by default. A returning drone first receives
+an orange `TEMP-n VERIFYING` label. After the configured evidence window it is
+either restored to a dormant `ID-n` (cyan `RECOVERED`) or promoted to a new
+permanent ID. The defaults are:
+
+```text
+--identity_retention_seconds 10
+--identity_confirm_frames 8
+--identity_max_provisional_frames 24
+--identity_match_threshold 0.62
+```
+
+At 24 FPS, 8 confirmation frames are about 0.33 seconds and 24 provisional
+frames are about 1 second. These options are frame-rate aware except for the two
+explicit frame counts. Keep the defaults for the demonstrated test path; tune
+them only against labelled validation videos. Use `--disable_identity_resolver`
+only for a controlled comparison with raw tracker IDs.
+
+Before deployment, inspect `identity_summary` in `detections_tracks.json` and
+confirm that:
+
+- `confirmed_identity_count` is plausible for the video.
+- `identity_aliases` contains each resolved `TEMP-n` mapping.
+- `event_counts.identity_reidentified` matches the recovered identities.
+- unresolved temporary identities are investigated instead of silently treated
+  as confirmed.
+
+The detailed contract and measured test are in
+[IDENTITY_RECONCILIATION.md](IDENTITY_RECONCILIATION.md).
+
 ## 4. Build the browser feed
 
 ```powershell

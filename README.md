@@ -41,6 +41,7 @@ a dashboard mockup. Being transparent about what's real:
 |---|---|
 | YOLOv8 detector (`src/yolo_detector.py` inference path, `models/best.pt`) | **Real**, trained on real data (see table above) |
 | ByteTrack-style tracker (`src/bytetrack_tracker.py`) | **Real**, motion-predicted matching + lost-track revival, tested on real video |
+| Identity reconciliation (`src/identity_resolver.py`) | **Real**, assigns `TEMP-n` while comparing a new internal track with dormant identities, then restores the old `ID-n` or promotes a new permanent ID |
 | `detect_and_track_video.py` | **Real** end-to-end pipeline: real video in, real detections/tracks out |
 | `frames_to_video.py` | **Real** utility to stitch a real dataset frame sequence into a playable video |
 | SAPIENT (STANAG 4810) message formatting (`src/sapient_protocol.py`) | Real data formatting, fed by real detections/tracks when used with `detect_and_track_video.py` |
@@ -103,6 +104,18 @@ Outputs:
 - `video_results/annotated_video.mp4` — your video with drawn boxes + track IDs
 - `video_results/detections_tracks.json` — full per-frame detection/track/SAPIENT data
 
+Identity labels in the annotated video have explicit states:
+
+- `ID-n` (green): confirmed identity.
+- `TEMP-n VERIFYING` (orange): evidence is still being collected.
+- `ID-n RECOVERED` (cyan): a new internal track was matched to a dormant identity.
+
+The JSON keeps both `internal_track_id` (immutable tracker history) and the
+operator-facing identity fields. It also records identity lifecycle events and
+the final alias, for example `TEMP-1 -> ID-1`. See
+[IDENTITY_RECONCILIATION.md](IDENTITY_RECONCILIATION.md) for the state machine,
+scoring method, tuning guidance, and measured validation.
+
 Useful flags:
 ```
 --conf 0.25                 minimum detection confidence to keep
@@ -111,6 +124,11 @@ Useful flags:
 --max_time_lost 90          frames a track can go undetected before it's dropped
 --search_radius_factor 4.0  how far (in box-diagonals) a detection can be from
                              a track's predicted position and still be matched
+--identity_retention_seconds 10  dormant-identity memory duration
+--identity_confirm_frames 8     evidence frames before an old ID may be restored
+--identity_max_provisional_frames 24  unmatched TEMP promotion deadline
+--identity_match_threshold 0.62  maximum hybrid match cost; lower is stricter
+--disable_identity_resolver     use raw tracker IDs only
 --show                      live preview while processing
 ```
 
@@ -148,6 +166,7 @@ python frames_to_video.py --frames_dir "path/to/img_folder" --out "./my_video.mp
 │   ├── __init__.py             # Explicit Python package marker
 │   ├── yolo_detector.py        # OrientedBoundingBox class + detector benchmark data
 │   ├── bytetrack_tracker.py    # Motion-predicted tracker with lost-track revival
+│   ├── identity_resolver.py    # TEMP/confirmed identity reconciliation layer
 │   ├── sapient_protocol.py     # NATO SAPIENT (STANAG 4810) message formatting
 │   ├── sensor_fusion.py        # [placeholder] simulated multi-sensor fusion
 │   └── radar_simulator.py      # [placeholder] simulated radar returns
@@ -160,9 +179,12 @@ python frames_to_video.py --frames_dir "path/to/img_folder" --out "./my_video.mp
 - Single class only (`drone`) — no classification of drone type/model.
 - Axis-aligned boxes only, not true oriented/rotated boxes.
 - Tracker is a simplified, from-scratch ByteTrack-style implementation, not the
-  official `bytetrack` package — no Kalman filter, IoU is used for
-  disambiguation but primary matching is nearest-neighbor to a predicted
-  position.
+  official `bytetrack` package. It uses tracker motion prediction plus a
+  separate per-track Kalman estimator; IoU assists disambiguation.
+- Long-gap identity reconciliation uses deterministic motion/Kalman, appearance,
+  size, and elapsed-time evidence. The LSTM interface is present, but no LSTM is
+  claimed or enabled until a temporal model is trained and validated on
+  identity-labelled trajectories.
 - Performance on footage outside the DUT-Anti-UAV domain (different camera
   angles, drone types, or backgrounds) has not been benchmarked — expect lower
   recall on genuinely out-of-distribution video.
