@@ -93,7 +93,7 @@ global.document = {
 global.fetch = async () => ({
     ok: true,
     status: 200,
-    json: async () => JSON.parse(fs.readFileSync("simulation_feed.json", "utf8"))
+    json: async () => JSON.parse(fs.readFileSync("tests/fixtures/dashboard_identity_feed.json", "utf8"))
 });
 global.requestAnimationFrame = () => 0;
 global.setInterval = () => 0;
@@ -109,17 +109,21 @@ setImmediate(() => {
         [getElement("data-mode-value").textContent === "REAL EO/IR OUTPUT", "real data mode"],
         [getElement("sensor-mode-value").textContent === "EO/IR ONLY", "EO-only sensor mode"],
         [getElement("coordinate-status").textContent === "NO GEOREFERENCE", "no georeferencing"],
-        [getElement("btn-radar-only").disabled, "radar mode disabled"],
-        [getElement("btn-fused-mode").disabled, "multi-sensor mode disabled"],
-        [getElement("btn-effect-ew").disabled, "effector controls disabled"],
         [getElement("radar-status").textContent === "NO RADAR DATA", "radar empty state"],
         [getElement("rf-status").textContent === "NO RF SENSOR DATA", "RF empty state"],
-        [getElement("acoustic-status").textContent === "NO ACOUSTIC SENSOR DATA", "acoustic empty state"]
+        [getElement("acoustic-status").textContent === "NO ACOUSTIC SENSOR DATA", "acoustic empty state"],
+        [Number(getElement("confirmed-count").textContent) === 1, "confirmed identity count"],
+        [Number(getElement("temporary-count").textContent) === 1, "temporary identity count"],
+        [Number(getElement("internal-count").textContent) === 2, "immutable internal track count"],
+        [Number(getElement("reid-count").textContent) === 1, "re-identification count"],
+        [getElement("alias-result").textContent === "TEMP-1 -> ID-1", "identity alias result"],
+        [getElement("resolver-mode").textContent.includes("DETERMINISTIC"), "honest resolver mode"],
+        [getElement("sapient-json-display").textContent.includes("DetectionReport"), "SAPIENT-inspired inspector"]
     ];
 
     const failures = assertions.filter(([passed]) => !passed).map(([, name]) => name);
     if (failures.length > 0) {
         throw new Error(`Dashboard smoke test failed: ${failures.join(", ")}`);
     }
-    report(`PASS: ${assertions.length} dashboard capability assertions`);
+    report(`PASS: ${assertions.length} dashboard identity and capability assertions`);
 });

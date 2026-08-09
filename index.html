@@ -1,289 +1,136 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NATO SAPIENT Counter-UAS Military Drone Detection & Sensor Fusion C2</title>
-    <meta name="description" content="Drone detection, ByteTrack tracking, and SAPIENT (STANREC 4869 / BSI Flex 335) protocol formatting research pipeline.">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FADN Identity Operations Console</title>
+    <meta name="description" content="Evidence-backed EO/IR drone detection, tracking, Kalman estimation and identity reconciliation dashboard.">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="c2-container">
-        <!-- TOP MILITARY HEADER BAR -->
-        <header class="top-bar">
-            <div class="header-brand">
-                <div class="nato-badge">
-                    <span class="star-icon">✦</span> SAPIENT-INSPIRED MESSAGING (STANREC 4869 / BSI Flex 335)
-                </div>
-                <h1 class="header-title">COUNTER-UAS DEFENSE COMMAND CENTER</h1>
-                <div class="header-sub" id="data-source-summary">Loading detection feed...</div>
+<div class="shell">
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-mark">FADN</span>
+            <div>
+                <h1>Identity Operations Console</h1>
+                <p>EO/IR detection, tracking and returning-drone reconciliation</p>
             </div>
+        </div>
+        <div class="status-strip" aria-label="System status">
+            <div class="status"><span>Data</span><strong id="data-mode-value">LOADING</strong></div>
+            <div class="status"><span>Sensor</span><strong id="sensor-mode-value">LOADING</strong></div>
+            <div class="status"><span>Model</span><strong id="model-value">YOLOv8s</strong></div>
+            <div class="status"><span>Coordinates</span><strong id="coordinate-status">NO GEOREFERENCE</strong></div>
+            <div class="clock"><strong id="utc-clock">--:--:-- UTC</strong><span id="run-state">INITIALIZING</span></div>
+        </div>
+    </header>
 
-            <div class="system-status-group">
-                <div class="status-badge" id="defcon-badge">
-                    <span class="badge-label">DATA MODE</span>
-                    <span class="badge-value" id="data-mode-value">LOADING</span>
+    <main class="workspace">
+        <section class="hero panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="eyebrow">LIVE RESULT REPLAY</span>
+                    <h2 id="video-name">Loading video result...</h2>
                 </div>
-                <div class="status-badge">
-                    <span class="badge-label">YOLO MODEL</span>
-                    <span class="badge-value model-active">YOLOv8 DRONE DETECTOR</span>
-                </div>
-                <div class="status-badge">
-                    <span class="badge-label">SENSOR MODE</span>
-                    <span class="badge-value fusion-online" id="sensor-mode-value">LOADING</span>
-                </div>
-                <div class="time-display">
-                    <div id="utc-clock">17:48:00 UTC</div>
-                    <div class="coords" id="coordinate-status">NO GEOREFERENCE</div>
+                <div class="heading-tags">
+                    <span class="tag good" id="fps-counter">-- FPS</span>
+                    <span class="tag" id="frame-counter">FRAME -- / --</span>
                 </div>
             </div>
-        </header>
-
-        <!-- MAIN TACTICAL GRID -->
-        <main class="dashboard-grid">
-            
-            <!-- COLUMN 1: LAYER 1 - DETECTION LAYER (RADAR & EO/IR FEEDS) -->
-            <section class="panel layer-detection" id="panel-layer1">
-                <div class="panel-header">
-                    <h2><span class="layer-tag">LAYER 1</span> DETECTION LAYER: SENSORS & VISION</h2>
-                    <div class="camera-mode-toggle">
-                        <button class="btn-toggle active" id="btn-mode-rgb">EO (RGB Day)</button>
-                        <button class="btn-toggle" id="btn-mode-ir">IR (FLIR Night)</button>
-                    </div>
+            <div class="canvas-wrap">
+                <canvas id="camera-canvas" width="960" height="540" aria-label="EO/IR track geometry visualization"></canvas>
+                <div class="canvas-legend">
+                    <span><i class="dot permanent"></i>Confirmed identity</span>
+                    <span><i class="dot temporary"></i>Temporary identity</span>
+                    <span><i class="dot predicted"></i>Kalman state</span>
                 </div>
+            </div>
+            <div class="transport">
+                <button id="play-button" type="button">Pause replay</button>
+                <input id="frame-slider" type="range" min="0" max="0" value="0" aria-label="Replay frame">
+                <span id="inference-value">Inference -- ms</span>
+            </div>
+        </section>
 
-                <div class="detection-feeds">
-                    <!-- DUAL EO/IR CAMERA CANVAS -->
-                    <div class="feed-box camera-box">
-                        <div class="feed-overlay">
-                            <span class="feed-name" id="camera-feed-label">EO/IR TRACK GEOMETRY VIEW</span>
-                            <span class="fps-tag" id="fps-counter">WAITING FOR DATA</span>
-                        </div>
-                        <canvas id="camera-canvas" width="640" height="360"></canvas>
-                        <div class="box-corner tl"></div><div class="box-corner tr"></div>
-                        <div class="box-corner bl"></div><div class="box-corner br"></div>
-                    </div>
-
-                    <!-- 3D RADAR PPI SCOPE CANVAS -->
-                    <div class="feed-box radar-box">
-                        <div class="feed-overlay">
-                            <span class="feed-name" id="radar-feed-label">RADAR INPUT</span>
-                            <span class="radar-range-tag" id="radar-status">WAITING FOR DATA</span>
-                        </div>
-                        <canvas id="radar-canvas" width="360" height="360"></canvas>
-                        <div class="box-corner tl"></div><div class="box-corner tr"></div>
-                        <div class="box-corner bl"></div><div class="box-corner br"></div>
-                    </div>
+        <aside class="side-stack">
+            <section class="panel identity-overview">
+                <div class="panel-heading compact"><div><span class="eyebrow">IDENTITY HEALTH</span><h2>Current run</h2></div></div>
+                <div class="metric-grid">
+                    <article><span>Confirmed identities</span><strong id="confirmed-count">0</strong></article>
+                    <article><span>Temporary identities</span><strong id="temporary-count">0</strong></article>
+                    <article><span>Internal tracks</span><strong id="internal-count">0</strong></article>
+                    <article><span>Re-identifications</span><strong id="reid-count">0</strong></article>
                 </div>
-
-                <!-- AUX SENSOR INDICATORS: RF & ACOUSTIC -->
-                <div class="aux-sensors">
-                    <div class="aux-card">
-                        <div class="aux-title">RF EMISSION SPECTRUM (2.4GHz / 5.8GHz)</div>
-                        <canvas id="rf-canvas" width="300" height="40"></canvas>
-                        <div class="aux-val" id="rf-status">WAITING FOR DATA</div>
-                    </div>
-                    <div class="aux-card">
-                        <div class="aux-title">ACOUSTIC BLADE PASS FREQUENCY (BPF)</div>
-                        <canvas id="acoustic-canvas" width="300" height="40"></canvas>
-                        <div class="aux-val" id="acoustic-status">WAITING FOR DATA</div>
-                    </div>
+                <div class="resolver-status">
+                    <div><span>Resolver</span><strong id="resolver-mode">DETERMINISTIC HYBRID</strong></div>
+                    <div><span>Retention</span><strong id="retention-value">--</strong></div>
+                    <div><span>Evidence window</span><strong id="confirmation-value">--</strong></div>
                 </div>
             </section>
 
-            <!-- COLUMN 2: LAYER 2 - SENSOR FUSION ENGINE -->
-            <section class="panel layer-fusion" id="panel-layer2">
-                <div class="panel-header">
-                    <h2><span class="layer-tag">LAYER 2</span> SENSOR FUSION ENGINE (UNIFIED PICTURE)</h2>
-                    <div class="fusion-mode-switch">
-                        <button class="btn-fusion active" id="btn-eo-only">EO/IR Only</button>
-                        <button class="btn-fusion" id="btn-radar-only">Radar Only</button>
-                        <button class="btn-fusion" id="btn-fused-mode">Multi-Sensor</button>
-                    </div>
-                </div>
-
-                <!-- UNIFIED THREAT MAP GRID -->
-                <div class="fusion-map-container">
-                    <div class="fusion-map-overlay">
-                        <div class="map-stat">FUSED TRACKS: <span id="fused-count">2 ACTIVE</span></div>
-                        <div class="map-stat">FALSE ALARM RATE (FAR): <span id="far-rate" class="highlight-green">N/A</span></div>
-                    </div>
-                    <canvas id="fusion-map-canvas" width="580" height="240"></canvas>
-                </div>
-
-                <!-- UNIFIED THREAT MATRIX TABLE -->
-                <div class="table-wrapper">
-                    <table class="fusion-table" id="fusion-matrix-table">
-                        <thead>
-                            <tr>
-                                <th>UTP TRACK ID</th>
-                                <th>SENSORS CORRELATED</th>
-                                <th>DISTANCE</th>
-                                <th>VELOCITY</th>
-                                <th>RCS ($m^2$)</th>
-                                <th>CONF</th>
-                                <th>STATUS</th>
-                            </tr>
-                        </thead>
-                        <tbody id="fusion-table-body">
-                            <!-- Populated via JS -->
-                        </tbody>
-                    </table>
-                </div>
+            <section class="panel active-card">
+                <div class="panel-heading compact"><div><span class="eyebrow">SELECTED OBJECT</span><h2 id="selected-display-id">NO ACTIVE IDENTITY</h2></div><span class="state-pill" id="selected-status">IDLE</span></div>
+                <dl class="detail-grid">
+                    <div><dt>Internal track</dt><dd id="selected-internal-id">N/A</dd></div>
+                    <div><dt>Detector confidence</dt><dd id="selected-confidence">N/A</dd></div>
+                    <div><dt>Identity confidence</dt><dd id="selected-identity-confidence">N/A</dd></div>
+                    <div><dt>Final alias</dt><dd id="selected-final-id">N/A</dd></div>
+                    <div><dt>Velocity</dt><dd id="selected-velocity">N/A</dd></div>
+                    <div><dt>Uncertainty</dt><dd id="selected-uncertainty">N/A</dd></div>
+                </dl>
+                <div class="evidence-bar"><span id="evidence-label">No provisional comparison active</span><i id="evidence-fill"></i></div>
             </section>
 
-            <!-- COLUMN 3: LAYER 3 - DECISION & EFFECTOR RESPONSE LAYER -->
-            <section class="panel layer-decision" id="panel-layer3">
-                <div class="panel-header">
-                    <h2><span class="layer-tag">LAYER 3</span> DECISION & EFFECTOR RESPONSE</h2>
-                </div>
-
-                <!-- AI THREAT CLASSIFICATION CARD -->
-                <div class="threat-card" id="active-threat-card">
-                    <div class="threat-header">
-                        <span class="threat-class-title" id="threat-title">NO ACTIVE TRACK</span>
-                        <span class="threat-alert-pill" id="threat-pill">AWAITING DATA</span>
-                    </div>
-                    <div class="threat-metrics">
-                        <div class="t-metric">
-                            <span class="t-lbl">TARGET TRACK</span>
-                            <span class="t-val" id="threat-track-id">N/A</span>
-                        </div>
-                        <div class="t-metric">
-                            <span class="t-lbl">ESTIMATED RANGE</span>
-                            <span class="t-val" id="threat-range">N/A</span>
-                        </div>
-                        <div class="t-metric">
-                            <span class="t-lbl">YOLO OBB CONF</span>
-                            <span class="t-val" id="threat-conf">N/A</span>
-                        </div>
-                        <div class="t-metric">
-                            <span class="t-lbl">BYTE TRACK ID</span>
-                            <span class="t-val" id="threat-bytetrack">N/A</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- EFFECTOR RESPONSE CONTROLS -->
-                <div class="effector-section">
-                    <h3 class="section-subtitle" id="effector-status">RESEARCH UI ONLY — NO EFFECTOR HARDWARE CONNECTED</h3>
-                    <div class="effector-buttons">
-                        <button class="btn-effector jammer" id="btn-effect-ew">
-                            <span class="eff-icon">[EW]</span>
-                            <div class="eff-info">
-                                <span class="eff-name">SIMULATE ELECTRONIC WARFARE</span>
-                                <span class="eff-type">RF Soft-Kill Jamming & Spoofing</span>
-                            </div>
-                        </button>
-
-                        <button class="btn-effector laser" id="btn-effect-laser">
-                            <span class="eff-icon">[HEL]</span>
-                            <div class="eff-info">
-                                <span class="eff-name">SIMULATE DIRECTED ENERGY</span>
-                                <span class="eff-type">High-Energy Laser Neutralization</span>
-                            </div>
-                        </button>
-
-                        <button class="btn-effector kinetic" id="btn-effect-kinetic">
-                            <span class="eff-icon">[KIN]</span>
-                            <div class="eff-info">
-                                <span class="eff-name">SIMULATE KINETIC INTERCEPTOR</span>
-                                <span class="eff-type">Counter-UAS Missile / Interceptor</span>
-                            </div>
-                        </button>
-                    </div>
-
-                    <div class="engagement-log" id="engagement-log-box">
-                        <div class="log-entry sys">Dashboard initialized. Waiting for feed capability metadata.</div>
-                    </div>
-                </div>
+            <section class="panel boundary-card">
+                <div class="panel-heading compact"><div><span class="eyebrow">CAPABILITY BOUNDARY</span><h2>What this run can claim</h2></div></div>
+                <ul class="capability-list">
+                    <li class="available"><span>EO/IR video detection</span><strong>AVAILABLE</strong></li>
+                    <li class="available"><span>Tracking + Kalman + identity resolver</span><strong>AVAILABLE</strong></li>
+                    <li><span id="radar-status">Radar</span><strong>NOT CONNECTED</strong></li>
+                    <li><span id="rf-status">RF sensor</span><strong>NOT CONNECTED</strong></li>
+                    <li><span id="acoustic-status">Acoustic sensor</span><strong>NOT CONNECTED</strong></li>
+                    <li><span>Georeferencing / effectors</span><strong>NOT IMPLEMENTED</strong></li>
+                </ul>
             </section>
+        </aside>
 
-            <!-- FULL WIDTH BOTTOM PANEL: BENCHMARK SUITE & SAPIENT PROTOCOL INSPECTOR -->
-            <section class="panel full-width-panel">
-                <div class="tab-header">
-                    <button class="tab-btn active" id="tab-benchmarks">RESEARCH BENCHMARK & EVALUATION SUITE</button>
-                    <button class="tab-btn" id="tab-sapient-xml">SAPIENT PROTOCOL INSPECTOR (STANREC 4869 / BSI Flex 335)</button>
-                </div>
+        <section class="panel wide identity-table-card">
+            <div class="panel-heading"><div><span class="eyebrow">AUDITABLE IDENTITIES</span><h2>Operator identity vs. immutable tracker history</h2></div><span class="muted" id="track-table-note">No active tracks</span></div>
+            <div class="table-scroll">
+                <table>
+                    <thead><tr><th>Display ID</th><th>Internal ID</th><th>Status</th><th>Detection</th><th>Identity</th><th>Speed</th><th>Final ID</th></tr></thead>
+                    <tbody id="identity-table-body"><tr><td colspan="7">Waiting for feed...</td></tr></tbody>
+                </table>
+            </div>
+        </section>
 
-                <!-- BENCHMARK TAB CONTENT -->
-                <div class="tab-content active" id="content-benchmarks">
-                    <div class="benchmark-grid">
-                        <div class="bench-table-wrapper">
-                            <h4>YOLO MODEL EVALUATION COMPARISON (DRONE DETECTION)</h4>
-                            <table class="bench-table">
-                                <thead>
-                                    <tr>
-                                        <th>MODEL ARCHITECTURE</th>
-                                        <th>PRETRAINING DATASET</th>
-                                        <th>PRECISION</th>
-                                        <th>RECALL</th>
-                                        <th>mAP50</th>
-                                        <th>SPEED (MS)</th>
-                                        <th>COVERAGE (%)</th>
-                                        <th>FAR (%)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr class="highlight-row">
-                                        <td><strong>YOLOv8 (Fine-Tuned, DUT Anti-UAV)</strong></td>
-                                        <td>COCO pretrained + DUT Anti-UAV 10k (fine-tuned)</td>
-                                        <td><span class="text-green">0.956</span></td>
-                                        <td><span class="text-green">0.868</span></td>
-                                        <td><span class="text-green">0.907</span></td>
-                                        <td>2.1 ms (GPU)</td>
-                                        <td colspan="2" style="text-align:left; color: var(--text-secondary); font-size: 0.85em;">
-                                            mAP50-95: 0.577. Measured on the real held-out validation split (2,600 images),
-                                            not simulated. Axis-aligned boxes (angle=0), not true oriented/rotated boxes --
-                                            the DUT Anti-UAV dataset provides axis-aligned annotations only.
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <p style="color: var(--text-secondary); font-size: 0.8em; margin-top: 8px;">
-                                Comparison rows against YOLOv8-OBB (DOTA-pretrained baseline), YOLOv9, and YOLOv11 have
-                                been removed: those models were never actually trained or evaluated in this project, and
-                                the numbers previously shown here were placeholder figures, not measurements. Only the
-                                model actually fine-tuned and evaluated above is shown.
-                            </p>
-                        </div>
+        <section class="panel events-card">
+            <div class="panel-heading"><div><span class="eyebrow">IDENTITY LIFECYCLE</span><h2>Resolver event timeline</h2></div></div>
+            <div id="event-timeline" class="timeline"><p class="empty">No identity events at this frame.</p></div>
+        </section>
 
-                        <div class="fine-tune-summary">
-                            <h4>DUT ANTI-UAV FINE-TUNING RESULTS</h4>
-                            <div class="progress-box">
-                                <div class="prog-label">
-                                    <span>RECALL (REAL, MEASURED ON VAL SPLIT)</span>
-                                    <span>86.8% ACHIEVED</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: 86.8%;"></div>
-                                </div>
-                            </div>
-                            <p class="fine-tune-desc">
-                                Fine-tuning YOLOv8 on 10,000 DUT Anti-UAV images (5,200 train / 2,600 val / 2,200 test)
-                                achieved a real measured mAP50 of 0.907 and recall of 86.8% on the held-out validation
-                                split -- an axis-aligned single-class ("drone") detector, not a rotated-box (OBB) model,
-                                since the source dataset annotations are axis-aligned.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+        <section class="panel metrics-card">
+            <div class="panel-heading"><div><span class="eyebrow">MEASURED RESULT</span><h2>Run evidence</h2></div></div>
+            <div class="run-metrics">
+                <div><span>Frames</span><strong id="total-frames">--</strong></div>
+                <div><span>Detections</span><strong id="total-detections">--</strong></div>
+                <div><span>Processing</span><strong id="processing-fps">--</strong></div>
+                <div><span>Alias result</span><strong id="alias-result">--</strong></div>
+            </div>
+            <div class="method-note"><strong>LSTM status:</strong> the resolver is LSTM-ready, but this tested run uses the deterministic motion/Kalman, appearance, size and time fallback. No untrained LSTM is presented as evidence.</div>
+        </section>
 
-                <!-- SAPIENT XML INSPECTOR TAB CONTENT -->
-                <div class="tab-content" id="content-sapient-xml">
-                    <pre class="code-block" id="sapient-json-display">
-                    <!-- Loaded dynamically via JS -->
-                    </pre>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- MAIN SCRIPT -->
-    <script src="app.js"></script>
+        <section class="panel wide inspector-card">
+            <div class="panel-heading">
+                <div><span class="eyebrow">INTEROPERABILITY INSPECTOR</span><h2>SAPIENT-inspired JSON</h2></div>
+                <span class="tag warning">EDUCATIONAL JSON - NOT WIRE-COMPATIBLE</span>
+            </div>
+            <pre id="sapient-json-display">Waiting for frame data...</pre>
+        </section>
+    </main>
+    <footer><span id="data-source-summary">Loading source...</span><span>BSI Flex 335 / STANREC 4869 concepts - no certification claim</span></footer>
+</div>
+<script src="app.js"></script>
 </body>
 </html>
