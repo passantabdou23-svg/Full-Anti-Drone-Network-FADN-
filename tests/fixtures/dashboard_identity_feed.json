@@ -1,0 +1,57 @@
+{
+  "metadata": {
+    "feed_type": "real_eoir",
+    "source": "dashboard smoke-test fixture",
+    "original_video": "identity_test.mp4",
+    "model": "best.pt",
+    "total_frames": 373,
+    "processing_fps": 47.2,
+    "total_detections": 240,
+    "unique_internal_tracks": 2,
+    "unique_confirmed_identities": 1,
+    "capabilities": {
+      "eoir": true,
+      "radar": false,
+      "rf": false,
+      "acoustic": false,
+      "multi_sensor_fusion": false,
+      "georeferencing": false,
+      "effector_control": false
+    }
+  },
+  "identity_summary": {
+    "confirmed_identity_count": 1,
+    "temporary_identity_count": 1,
+    "retention_seconds": 10,
+    "retention_frames": 240,
+    "confirmation_frames": 8,
+    "temporal_model": "deterministic_motion_fallback",
+    "identity_aliases": {"TEMP-1": "ID-1"},
+    "event_counts": {"identity_reidentified": 1}
+  },
+  "frames": [
+    {
+      "frame_id": 170,
+      "inference_speed_ms": 0,
+      "bytetrack_tracks": [
+        {
+          "track_id": 2,
+          "internal_track_id": 2,
+          "display_id": "TEMP-1",
+          "display_id_at_frame": "TEMP-1",
+          "final_display_id": "ID-1",
+          "identity_status": "provisional",
+          "identity_confidence": 0.801,
+          "candidate_identity_id": 1,
+          "candidate_cost": 0.1994,
+          "speed_px_per_frame": 71.67,
+          "obb": {"x_center": 448, "y_center": 943, "width": 427, "height": 274, "confidence": 0.618},
+          "trajectory": [{"x": 379, "y": 964}, {"x": 448, "y": 943}]
+        }
+      ],
+      "kalman_filter_states": {"2": {"x": 438, "y": 946, "vx": 52.7, "vy": -16.2, "position_uncertainty_px": 3.9}},
+      "identity_events": [{"frame_id": 169, "event": "provisional_created", "provisional_id": "TEMP-1"}],
+      "sapient_asm_eoir": {"message_type": "DetectionReportBatch", "node_id": "EOIR-CAM-01"}
+    }
+  ]
+}

@@ -127,16 +127,26 @@ Open <http://127.0.0.1:8000/> and confirm:
 
 - Data mode reads `REAL EO/IR OUTPUT` for a real export.
 - Sensor mode reads `EO/IR ONLY`.
-- Radar and multi-sensor buttons are disabled.
-- Radar, RF, and acoustic panels state that no data is available.
-- Effector buttons are disabled.
-- Range displays `N/A` without georeferencing.
+- Identity health shows the expected confirmed, temporary, internal-track, and
+  re-identification counts from `identity_summary`.
+- A provisional frame shows `TEMP-n`, its immutable `INT-n` history, the
+  candidate cost, identity confidence, Kalman velocity, and uncertainty.
+- The final alias agrees with `identity_aliases`, for example `TEMP-1 -> ID-1`.
+- The lifecycle timeline contains `provisional_created` and
+  `identity_reidentified` when those events occurred.
+- Radar, RF, acoustic, georeferencing, and effectors are marked unavailable;
+  no fabricated operational data are displayed.
+- The SAPIENT inspector is labelled educational and not wire-compatible.
 - The browser console contains no errors.
 
 For a hosted static deployment, publish `index.html`, `styles.css`, `app.js`,
 and the generated `simulation_feed.json` together through the chosen static
 web server. Do not publish raw input videos, model weights, training datasets,
 or the full `detections_tracks.json` unless they are intentionally required.
+
+The dashboard feed contains result metadata and per-frame coordinates. Review
+it for sensitive filenames or operational content before public hosting. The
+exporter publishes only the input video's basename, not its workstation path.
 
 ## Capability boundary
 

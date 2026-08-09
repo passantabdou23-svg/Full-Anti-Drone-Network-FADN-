@@ -44,9 +44,9 @@ a dashboard mockup. Being transparent about what's real:
 | Identity reconciliation (`src/identity_resolver.py`) | **Real**, assigns `TEMP-n` while comparing a new internal track with dormant identities, then restores the old `ID-n` or promotes a new permanent ID |
 | `detect_and_track_video.py` | **Real** end-to-end pipeline: real video in, real detections/tracks out |
 | `frames_to_video.py` | **Real** utility to stitch a real dataset frame sequence into a playable video |
-| SAPIENT (STANAG 4810) message formatting (`src/sapient_protocol.py`) | Real data formatting, fed by real detections/tracks when used with `detect_and_track_video.py` |
+| SAPIENT-inspired formatting (`src/sapient_protocol.py`) | **Educational JSON**, fed by real detections/tracks and aligned with selected BSI Flex 335 / STANREC 4869 concepts; not wire-compatible Protobuf or a certified node |
 | Radar simulation, RF/acoustic fusion, `main_pipeline.py` | **Simulated / placeholder.** No real radar/RF hardware or dataset is used. Kept for architectural completeness and future work; not used by the real video pipeline. |
-| Web dashboard (`index.html`, `app.js`) | Currently wired to the simulated `simulation_feed.json`. Wiring it to real `detections_tracks.json` output is a planned next step. |
+| Web dashboard (`index.html`, `app.js`) | **Real-result replay UI** after `export_for_dashboard.py` converts `detections_tracks.json`; exposes display IDs, immutable internal IDs, Kalman state and identity events while marking unavailable sensors clearly |
 
 ## Quickstart
 
@@ -167,10 +167,11 @@ python frames_to_video.py --frames_dir "path/to/img_folder" --out "./my_video.mp
 │   ├── yolo_detector.py        # OrientedBoundingBox class + detector benchmark data
 │   ├── bytetrack_tracker.py    # Motion-predicted tracker with lost-track revival
 │   ├── identity_resolver.py    # TEMP/confirmed identity reconciliation layer
-│   ├── sapient_protocol.py     # NATO SAPIENT (STANAG 4810) message formatting
+│   ├── sapient_protocol.py     # SAPIENT-inspired BSI Flex 335 / STANREC 4869 JSON
 │   ├── sensor_fusion.py        # [placeholder] simulated multi-sensor fusion
 │   └── radar_simulator.py      # [placeholder] simulated radar returns
-├── index.html / app.js / styles.css   # Web dashboard (currently demo-fed)
+├── export_for_dashboard.py      # Converts real result JSON into the browser feed
+├── index.html / app.js / styles.css   # Identity-focused real-result dashboard
 └── requirements.txt
 ```
 

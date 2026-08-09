@@ -38,14 +38,19 @@ def convert_frame(frame):
     fused_threat_picture = []
     for t in tracks:
         obb = t["obb"]
+        display_id = t.get("display_id_at_frame") or t.get("display_id") or f"TRK-{t['track_id']}"
         fused_threat_picture.append({
-            "fused_id": f"EO-TRK-{t['track_id']}",
+            "fused_id": display_id,
             "classification": obb.get("class_name", "drone").upper(),
             "confidence_score": t.get("score", obb.get("confidence", 0.0)),
             "sensor_sources": ["EO/IR"],  # honestly single-sensor, never fabricated
             "pos_3d": None,  # no georeferencing step exists to produce real-world metres
             "speed_px_per_frame": t.get("speed_px_per_frame"),  # real pixel-space speed, not calibrated to real units
             "eo_track_id": t["track_id"],
+            "internal_track_id": t.get("internal_track_id", t["track_id"]),
+            "identity_status": t.get("identity_status", "unresolved"),
+            "identity_confidence": t.get("identity_confidence"),
+            "final_display_id": t.get("final_display_id", display_id),
             "radar_rcs": None
         })
 
@@ -56,6 +61,8 @@ def convert_frame(frame):
         "inference_speed_ms": frame.get("inference_speed_ms", 0.0),
         "eoir_detections": frame.get("detections", []),
         "bytetrack_tracks": tracks,  # already shaped correctly by STrack.to_dict()
+        "kalman_filter_states": frame.get("kalman_filter_states", {}),
+        "identity_events": frame.get("identity_events", []),
         "radar_detections": [],  # honest: no radar sensor in this pipeline
         "fused_threat_picture": fused_threat_picture,
         "sapient_hlm": hlm,
@@ -76,7 +83,8 @@ def main():
         data = json.load(f)
 
     frames = [convert_frame(f) for f in data["frames"]]
-    video_source = data.get("metadata", {}).get("video_source")
+    source_metadata = data.get("metadata", {})
+    video_source = source_metadata.get("video_source")
     output = {
         "metadata": {
             "feed_type": "real_eoir",
@@ -84,6 +92,12 @@ def main():
             # The dashboard is browser-served, so do not expose an absolute
             # workstation path in its public JSON payload.
             "original_video": os.path.basename(video_source) if video_source else None,
+            "model": os.path.basename(source_metadata.get("weights_used", "best.pt")),
+            "total_frames": source_metadata.get("total_frames_processed", len(frames)),
+            "processing_fps": source_metadata.get("avg_fps_processing"),
+            "total_detections": source_metadata.get("total_detections"),
+            "unique_internal_tracks": source_metadata.get("unique_internal_tracks_seen"),
+            "unique_confirmed_identities": source_metadata.get("unique_confirmed_identities"),
             "note": "radar_detections is always empty and fused_threat_picture uses EO/IR only -- no radar/RF/acoustic sensor exists in this pipeline",
             "capabilities": {
                 "eoir": True,
@@ -95,6 +109,7 @@ def main():
                 "effector_control": False
             }
         },
+        "identity_summary": data.get("identity_summary", {}),
         "frames": frames
     }
 

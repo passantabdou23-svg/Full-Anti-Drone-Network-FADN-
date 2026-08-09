@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Full Anti-Drone Network (FADN) - Project-Aligned Technical Report</title>
+<style>
+@page { size: A4; margin: 2.1cm 1.9cm 2cm 1.9cm; }
+body { font-family: Aptos, Arial, sans-serif; color: #142238; line-height: 1.45; font-size: 10.5pt; }
+h1 { color: #0d233d; font-size: 24pt; margin: 0 0 10pt; }
+h2 { color: #1f67c6; font-size: 17pt; border-bottom: 1.5pt solid #1f67c6; padding-bottom: 4pt; margin-top: 22pt; }
+h3 { color: #0d233d; font-size: 13pt; margin-top: 15pt; margin-bottom: 5pt; }
+h4 { color: #1f67c6; font-size: 11pt; margin-bottom: 4pt; }
+p { margin: 0 0 8pt; text-align: justify; }
+ul, ol { margin-top: 3pt; margin-bottom: 9pt; }
+li { margin-bottom: 3pt; }
+table { width: 100%; border-collapse: collapse; margin: 10pt 0 14pt; font-size: 9.3pt; }
+th { background: #0d233d; color: white; padding: 6pt; border: 1pt solid #92a9c4; }
+td { padding: 6pt; border: 1pt solid #b8c8da; vertical-align: top; }
+tr:nth-child(even) td { background: #eef5fc; }
+.title-page { page-break-after: always; text-align: left; padding-top: 2.2cm; }
+.title-page .kicker { color: #00a6d6; font-weight: 700; letter-spacing: 0.6pt; }
+.title-page .subtitle { font-size: 17pt; margin-top: 18pt; color: #334b68; }
+.title-page .scope { margin-top: 28pt; padding: 12pt; border-left: 5pt solid #eb6715; background: #fff0e5; font-weight: 700; }
+.title-page .author { margin-top: 55pt; font-size: 13pt; }
+.page-break { page-break-before: always; }
+.callout { background: #eef5fc; border-left: 5pt solid #1f67c6; padding: 9pt 12pt; margin: 10pt 0; }
+.warning { background: #fff0e5; border-left: 5pt solid #eb6715; padding: 9pt 12pt; margin: 10pt 0; }
+.success { background: #e6f5ed; border-left: 5pt solid #189b5f; padding: 9pt 12pt; margin: 10pt 0; }
+.equation { font-family: Consolas, monospace; text-align: center; padding: 8pt; background: #f3f6fa; border: 1pt solid #c5d2e0; margin: 8pt 0; }
+.pipeline { text-align: center; font-weight: 700; color: #0d233d; padding: 12pt; background: #eef5fc; border: 1pt solid #1f67c6; }
+.small { font-size: 8.5pt; color: #4e6075; }
+.toc li { margin-bottom: 5pt; }
+code { font-family: Consolas, monospace; font-size: 9pt; background: #f0f3f7; padding: 1pt 3pt; }
+pre { font-family: Consolas, monospace; font-size: 8.4pt; background: #0d233d; color: #f4f8fc; padding: 10pt; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<div class="title-page">
+  <div class="kicker">AI TOOLS &amp; EMERGING TECHNOLOGIES - FINAL COURSE PROJECT</div>
+  <h1>Full Anti-Drone Network (FADN)</h1>
+  <div class="subtitle">Real Drone Detection, Tracking, Kalman State Estimation and Temporary Identity Reconciliation</div>
+  <div class="scope">Research prototype - current implemented scope: EO/IR video processing. Radar, RF, acoustic fusion, georeferencing, operational effectors and certified SAPIENT networking are future work.</div>
+  <div class="author"><strong>Author:</strong> Passant Mahmoud Abdou Mahmoud<br>
+  <strong>Technical basis:</strong> YOLOv8s, custom ByteTrack-style association, linear Kalman filter, hybrid identity resolver, SAPIENT-inspired JSON and a capability-aware browser dashboard</div>
+  <p class="small" style="margin-top:55pt">This report describes the repository and measurements as implemented and tested. It does not claim an operational counter-UAS weapon system or a certified NATO interface.</p>
+</div>
+
+<p style="page-break-before: always; margin: 0; font-size: 1pt;">&nbsp;</p>
+
+<h2>Report Structure</h2>
+<ol class="toc">
+  <li>Abstract</li>
+  <li>Introduction</li>
+  <li>Background and Literature Review</li>
+  <li>Proposed Methodology</li>
+  <li>Dataset Description and Evaluation Metrics</li>
+  <li>Results and Analysis</li>
+  <li>Conclusion and Future Work</li>
+  <li>References</li>
+  <li>Appendix</li>
+</ol>
+
+<h2>1. Abstract</h2>
+<p>Small drones are difficult visual targets because they occupy few pixels, move rapidly relative to their apparent size, and cross backgrounds that range from clear sky to foliage and buildings. This project implements and validates an honest electro-optical/infrared (EO/IR) research pipeline that accepts a real video, detects drones with a fine-tuned YOLOv8s model, associates detections with a custom ByteTrack-style tracker, estimates pixel-space position and velocity with a per-track linear Kalman filter, and exports an annotated video plus a structured JSON record.</p>
+<p>The detector was trained on the DUT Anti-UAV detection dataset after conversion from Pascal VOC XML to normalized YOLO horizontal bounding-box labels. The measured validation results are precision 0.956, recall 0.868, mAP@0.50 of 0.907 and mAP@0.50:0.95 of 0.577. These values are detector validation metrics; they are not multi-object tracking metrics and are not presented as field performance.</p>
+<p>A real test exposed an identity-continuity failure: the drone disappeared for 125 frames while the low-level tracker retained a lost track for only 90 frames. The returning drone therefore created a second immutable internal track. The implemented correction adds a separate operator-facing identity layer. A returning track first receives a visible temporary identifier, such as <code>TEMP-1</code>, while eight frames of motion, appearance, box-size and elapsed-time evidence are collected. The resolver then restores an acceptable dormant identity or promotes the temporary identity to a new permanent identifier.</p>
+<p>On the approved 373-frame test video, the resolver preserved two internal tracker histories but produced one confirmed operator identity. <code>TEMP-1</code> was displayed on frames 169-175 and restored to <code>ID-1</code> on frame 176 with a hybrid match cost of 0.2404 and appearance similarity of 0.9953. The post-merge run processed the video at 47.2 FPS on an NVIDIA RTX 2000 Ada GPU. This is a single measured run, not a universal throughput guarantee.</p>
+
+<h2>2. Introduction</h2>
+<h3>2.1 The Big Picture and Operational Context</h3>
+<p>Low-cost unmanned aerial systems can produce consequences that are disproportionate to their purchase price and physical size. The December 2018 Gatwick Airport disruption affected approximately 140,000 passengers and more than 1,000 flights. Published economic estimates vary according to whether airport, airline, passenger and wider industry effects are counted; a peer-reviewed case estimate placed the wider 33-hour loss at approximately EUR 55.8 million. The defensible lesson is not one exact monetary value, but the operational leverage of a small aerial intrusion against critical infrastructure.</p>
+<p>Visual detection is only one part of the challenge. An operator also needs continuity: the system must explain whether a current observation belongs to a known drone, a temporarily lost drone, or a genuinely new object. A tracker that assigns a new identifier after a long disappearance is behaving consistently with finite memory, yet the resulting identity change can confuse an operator. This project therefore separates the immutable engineering track history from the logical identity presented to the user.</p>
+
+<h3>2.2 Project Objectives</h3>
+<ol>
+  <li>Fine-tune a real drone detector using the annotations actually supplied by the selected dataset.</li>
+  <li>Process user-supplied videos and produce repeatable annotated-video and JSON outputs.</li>
+  <li>Maintain short-gap track continuity through motion-predicted association and lost-track revival.</li>
+  <li>Estimate smoothed pixel position, velocity and uncertainty with a linear Kalman filter bank.</li>
+  <li>Resolve long-gap identity interruptions without rewriting low-level track identifiers.</li>
+  <li>Expose the real EO/IR result in a professional dashboard while marking unavailable capabilities clearly.</li>
+  <li>Provide an educational SAPIENT-inspired JSON structure without claiming Protobuf wire compatibility or certification.</li>
+</ol>
+
+<h3>2.3 Implemented Scope and Capability Boundary</h3>
+<table>
+  <tr><th>Implemented and evidence-backed</th><th>Simulated, architectural or future work</th></tr>
+  <tr><td>Fine-tuned YOLOv8s drone detection</td><td>Real radar, RF or acoustic hardware</td></tr>
+  <tr><td>Horizontal bounding boxes from real VOC labels</td><td>True multi-sensor correlation and EKF fusion</td></tr>
+  <tr><td>Custom motion-based track association</td><td>Range, altitude, geolocation or metric velocity</td></tr>
+  <tr><td>Per-track linear Kalman filter</td><td>Effector or countermeasure control</td></tr>
+  <tr><td>Temporary/dormant identity reconciliation</td><td>Trained LSTM temporal model</td></tr>
+  <tr><td>Annotated video, JSON, tests and deployment runbook</td><td>Certified or wire-compatible SAPIENT implementation</td></tr>
+</table>
+
+<h2>3. Background and Literature Review</h2>
+<h3>3.1 Drone Detection and Bounding-Box Choice</h3>
+<p>YOLO-family detectors provide a practical balance between localization accuracy and inference speed. The present model uses Ultralytics YOLOv8s and one learned class, <em>drone</em>. The project adapter converts detector output from corner coordinates into a shared center-size representation:</p>
+<div class="equation">cx = (x1 + x2) / 2; &nbsp; cy = (y1 + y2) / 2; &nbsp; w = x2 - x1; &nbsp; h = y2 - y1</div>
+<p>The codebase contains a field named <code>angle</code> in the common box representation, but the dataset labels are axis aligned and the runtime adapter sets the angle to zero. This does not make the detector an oriented-bounding-box model.</p>
+
+<h4>Why the data were not converted to OBB</h4>
+<p>The DUT Anti-UAV detection annotations provide <code>xmin</code>, <code>ymin</code>, <code>xmax</code> and <code>ymax</code>. Genuine OBB training requires an observed orientation angle or four consistently ordered corner points. An automatic conversion could only set every angle to zero or invent an orientation from image appearance. Neither operation creates ground truth. Training or validating OBB on such pseudo-labels would therefore make the experiment difficult to defend scientifically.</p>
+<div class="warning"><strong>Decision:</strong> use horizontal bounding boxes because they match the actual annotations. True OBB remains valid future work only after acquiring or manually producing genuine oriented labels.</div>
+
+<h3>3.2 Multi-Object Tracking and Kalman Estimation</h3>
+<p>ByteTrack demonstrated that associating lower-confidence detections in a second stage can improve track continuity. This repository contains a simplified, custom ByteTrack-style implementation rather than the official package. The active matching path predicts a center from recent motion, constructs a box-size-scaled search radius, and selects the nearest valid detection. Tracks move through tracked, lost and removed lifecycle states. A high-confidence detection can revive a lost track while it remains inside the configured memory limit.</p>
+<p>A separate linear Kalman filter bank estimates a state vector <code>x = [px, py, vx, vy]^T</code> from center measurements <code>z = [px, py]^T</code>. The standard prediction and correction equations are:</p>
+<div class="equation">x- = F x &nbsp;&nbsp; | &nbsp;&nbsp; P- = F P F^T + Q</div>
+<div class="equation">K = P- H^T (H P- H^T + R)^-1 &nbsp;&nbsp; | &nbsp;&nbsp; x = x- + K(z - Hx-)</div>
+<p>The tracker lifecycle and Kalman-filter cleanup windows are separate. The Kalman output is an estimator of image-plane state; without camera calibration it must not be described as physical range, altitude or speed in metres per second.</p>
+
+<h3>3.3 Identity Reconciliation and Re-Identification</h3>
+<p>Short-term tracking and long-gap identity are different problems. A low-level tracker needs finite memory so stale tracks do not accumulate indefinitely. An operator-facing system, however, may retain a richer dormant record and compare a new track with prior identities. The new resolver stores the permanent identity, last Kalman state, center, box size, velocity, appearance descriptor, internal track history and last-seen time.</p>
+<p>The current appearance descriptor is a compact normalized hue/saturation and brightness histogram extracted from the real crop. It is supporting evidence, not a trained deep ReID embedding. The temporal-model protocol is an extension point for a future trained LSTM, but no random or untrained LSTM is enabled because untrained weights would generate meaningless identity scores.</p>
+
+<h3>3.4 SAPIENT Interoperability Context</h3>
+<p>SAPIENT is specified by BSI Flex 335 and adopted by NATO under STANREC 4869. The real interface uses Protocol Buffers v3, registration and acknowledgement flows, defined message types and real coordinate systems. This repository emits readable JSON shaped around selected DetectionReport and StatusReport concepts. Pixel locations are explicitly marked as image coordinates. The implementation is educational and structurally useful, but it is not wire compatible, certified or a substitute for a conformance-tested SAPIENT node.</p>
+
+<h2>4. Proposed Methodology</h2>
+<div class="pipeline">Input MP4 -> YOLOv8 detection -> custom track association -> Kalman state -> identity resolver -> annotated MP4 + JSON -> dashboard export</div>
+
+<h3>4.1 YOLOv8 Detection Engine</h3>
+<p>The main entry point loads <code>models/best.pt</code>, decodes the source video with OpenCV, and invokes Ultralytics once per frame. Detections below the configurable confidence threshold are removed. The demonstrated command uses confidence 0.25, image size 640 and GPU device 0. Each retained box contains center, width, height, confidence, class and an angle fixed to zero because the model is horizontal-box based.</p>
+
+<h3>4.2 Custom ByteTrack-Style Tracker</h3>
+<p>For each frame, the tracker predicts track centers and associates detections using distance within a scale-aware radius. Unmatched active tracks become lost. A lost track can be revived with the same internal ID until <code>max_time_lost</code> is exceeded; after expiry, a later detection receives a new internal ID. Internal IDs are never rewritten because they document the actual lifecycle of the low-level tracker.</p>
+<p>The approved test used the default 90-frame lost-track window. The drone was detected through frame 43, absent during frames 44-168, and returned at frame 169. Because the 125-frame interruption exceeded the tracker memory, internal track 1 expired and internal track 2 was correctly created.</p>
+
+<h3>4.3 Kalman Filter and Hybrid Identity Resolver</h3>
+<p>The identity resolver operates above the tracker. When a confirmed identity disappears, its record becomes dormant for 10 seconds by default. If a new internal track appears while a dormant candidate exists, the system immediately displays a temporary identity and begins multi-frame comparison. Detection is never delayed while identity is uncertain.</p>
+<p>The current hybrid cost is:</p>
+<div class="equation">C = 0.35 d_motion + 0.35 d_appearance + 0.15 d_size + 0.15 d_time</div>
+<ul>
+  <li><strong>d_motion:</strong> distance from the short-term predicted position normalized by size, time gap, velocity and uncertainty.</li>
+  <li><strong>d_appearance:</strong> cosine distance between the dormant and new crop descriptors.</li>
+  <li><strong>d_size:</strong> logarithmic change in bounding-box diagonal.</li>
+  <li><strong>d_time:</strong> the consumed fraction of the dormant retention window.</li>
+</ul>
+<p>A candidate must satisfy the cost threshold, minimum appearance gate and ambiguity margin after the configured eight evidence frames. A valid match restores the old permanent identity. If no acceptable match is available after 24 provisional frames, the temporary identity becomes a new permanent identity. An abandoned or end-of-video temporary identity remains explicitly auditable instead of being silently fabricated into a match.</p>
+
+<h3>4.4 Output Contract, SAPIENT-Inspired JSON and Dashboard</h3>
+<p>Every frame record includes detections, enriched tracks, Kalman states, identity events and a SAPIENT-inspired detection batch. The track object preserves both the immutable <code>internal_track_id</code> and the operator-facing <code>display_id</code>. For finite-video post-processing, <code>display_id_at_frame</code> retains what the operator saw at that moment while <code>final_display_id</code> records the resolved alias.</p>
+<p>The dashboard is a static HTML/CSS/JavaScript application. The conversion utility produces a browser feed from real pipeline JSON. Capabilities are explicit: when radar, RF, acoustic, multi-sensor fusion, georeferencing or effectors are unavailable, the interface must show them as unavailable rather than animating fabricated operational data.</p>
+
+<h2>5. Dataset Description and Evaluation Metrics</h2>
+<h3>5.1 Dataset Specifications</h3>
+<table>
+  <tr><th>Property</th><th>Project value</th></tr>
+  <tr><td>Dataset</td><td>DUT Anti-UAV detection split</td></tr>
+  <tr><td>Images</td><td>10,000</td></tr>
+  <tr><td>Bounding boxes</td><td>10,109</td></tr>
+  <tr><td>Classes</td><td>One: UAV converted to drone</td></tr>
+  <tr><td>Official split</td><td>5,200 train / 2,600 validation / 2,200 test</td></tr>
+  <tr><td>Original labels</td><td>Pascal VOC XML horizontal boxes</td></tr>
+  <tr><td>Training labels</td><td>Normalized YOLO HBB format</td></tr>
+  <tr><td>Training setup</td><td>YOLOv8s initialization, 80 epochs, image size 800, batch 32, GPU</td></tr>
+</table>
+
+<h3>5.2 Detection Metrics</h3>
+<div class="equation">Precision = TP / (TP + FP) &nbsp;&nbsp;&nbsp; Recall = TP / (TP + FN)</div>
+<p>Average Precision integrates the precision-recall curve for a class at a specified intersection-over-union threshold. <code>mAP@0.50</code> evaluates at IoU 0.50, while <code>mAP@0.50:0.95</code> averages over thresholds 0.50 to 0.95 in steps of 0.05. The latter is stricter because localization quality matters increasingly at high IoU thresholds.</p>
+
+<h3>5.3 Why MOTA Was Not Reported</h3>
+<div class="equation">MOTA = 1 - sum_t(FN_t + FP_t + IDSW_t) / sum_t(GT_t)</div>
+<p>Multiple Object Tracking Accuracy requires a tracking ground truth that assigns persistent identities to every object across frames. The selected detector dataset supplies boxes but does not provide the project with a verified evaluation set containing consistent track identities, occlusion states, entries and exits. The user-supplied demonstration video also has no independent frame-by-frame identity annotation. Computing MOTA from the system's predictions alone would compare the output with itself and would not be valid.</p>
+<p>MOTA is also detection dominated: false positives and false negatives can obscure identity quality. When a labelled tracking set is created, the project should report MOTA together with IDF1, HOTA, identity-switch count, re-identification precision and re-identification recall.</p>
+
+<h2>6. Results and Analysis</h2>
+<h3>6.1 Detector Validation</h3>
+<table>
+  <tr><th>Metric</th><th>Measured value</th><th>Interpretation</th></tr>
+  <tr><td>Precision</td><td>0.956</td><td>Most retained validation predictions were correct.</td></tr>
+  <tr><td>Recall</td><td>0.868</td><td>Most validation drones were detected, with remaining misses.</td></tr>
+  <tr><td>mAP@0.50</td><td>0.907</td><td>Strong detection quality at IoU 0.50.</td></tr>
+  <tr><td>mAP@0.50:0.95</td><td>0.577</td><td>Lower under stricter localization thresholds, as expected.</td></tr>
+  <tr><td>Validation inference</td><td>approximately 2.1 ms/image</td><td>Ultralytics validation timing on the configured GPU; not full-pipeline latency.</td></tr>
+</table>
+
+<h3>6.2 Returning-Drone Identity Test</h3>
+<table>
+  <tr><th>Observation</th><th>Measured result</th></tr>
+  <tr><td>Video</td><td>373 frames, 1920x1080, approximately 23.976 FPS</td></tr>
+  <tr><td>Total detections</td><td>240</td></tr>
+  <tr><td>Baseline lifecycle</td><td>ID-1 on frames 1-43; no detections on 44-168; internal track 2 begins on 169</td></tr>
+  <tr><td>Temporary identity</td><td>TEMP-1 on frames 169-175</td></tr>
+  <tr><td>Resolution</td><td>Identity reidentified as ID-1 at frame 176</td></tr>
+  <tr><td>Hybrid cost</td><td>0.2404 against threshold 0.62</td></tr>
+  <tr><td>Appearance similarity</td><td>0.9953</td></tr>
+  <tr><td>Identity outcome</td><td>Two immutable internal tracks, one confirmed operator identity</td></tr>
+  <tr><td>Post-merge throughput</td><td>47.2 FPS on NVIDIA RTX 2000 Ada</td></tr>
+</table>
+<div class="success"><strong>What the test proves:</strong> for this approved video and configuration, the new identity layer preserved the low-level audit history and restored the returning drone to the original operator-facing identity.</div>
+<div class="warning"><strong>What the test does not prove:</strong> general re-identification accuracy across multiple similar drones, long durations, severe appearance change, camera cuts, fog, night imagery or unseen platforms.</div>
+
+<h3>6.3 Software Verification and Deployment Readiness</h3>
+<p>The merged feature is covered by tests for immediate new identity creation, temporary-to-old-ID restoration, different-appearance promotion, retention expiry, abandoned temporary tracks, SAPIENT object identity selection, low-level tracker lifecycle and Kalman lifecycle. The post-merge suite completed 10 Python tests successfully, and the dashboard contract completed nine capability assertions.</p>
+<p>The deployment runbook separates the offline Python processing stage from the static browser dashboard. It documents virtual-environment setup, platform-specific PyTorch installation, environment verification, CPU/GPU execution, dashboard export and local static serving. The input videos and generated results remain local and are excluded from routine source-control updates.</p>
+
+<h3>6.4 Limitations and Failure Modes</h3>
+<ul>
+  <li>The detector has one class and does not identify drone make, model or payload.</li>
+  <li>Horizontal boxes can include extra background for rotated targets.</li>
+  <li>The custom tracker is simpler than a production multi-object tracker and has not been benchmarked on a labelled MOT suite.</li>
+  <li>Histogram appearance is weak when drones occupy very few pixels or look similar.</li>
+  <li>A long disappearance increases motion uncertainty and false-revival risk.</li>
+  <li>The current identity thresholds were demonstrated on a limited set and require calibration on labelled positive and negative re-entry cases.</li>
+  <li>No trained LSTM or deep ReID network is enabled.</li>
+  <li>All locations and velocities are image-plane values.</li>
+  <li>SAPIENT output is a JSON approximation, not a certified interface.</li>
+  <li>Radar, RF, acoustic fusion and effectors are not operational components.</li>
+</ul>
+
+<h3>6.5 Economic Relevance Without Fabricated ROI</h3>
+<p>The project demonstrates a reproducible visual baseline relevant to monitoring critical infrastructure. It does not provide evidence for a specific return on investment, cost reduction percentage or countermeasure effectiveness. A future business case would require field false-alarm rates, staffing requirements, equipment cost, maintenance, regulatory obligations, integration cost and quantified avoided-loss scenarios.</p>
+
+<h2>7. Conclusion and Future Work</h2>
+<h3>7.1 Key Technical Takeaways</h3>
+<ol>
+  <li>The YOLOv8s detector is trained and measured on the selected real dataset.</li>
+  <li>Horizontal boxes are the correct scientific choice for the supplied annotations.</li>
+  <li>The low-level tracker and Kalman filter provide real per-frame continuity and pixel-state estimation.</li>
+  <li>The identity resolver fixes the demonstrated long-gap operator-ID problem without corrupting internal track history.</li>
+  <li>Temporary identities make uncertainty visible instead of pretending the decision is immediate.</li>
+  <li>The dashboard and documentation expose unavailable capabilities instead of presenting simulation as operational evidence.</li>
+</ol>
+
+<h3>7.2 Prioritized Roadmap</h3>
+<ol>
+  <li>Create an identity-labelled multi-video evaluation set with re-entry and hard-negative cases.</li>
+  <li>Measure MOTA, IDF1, HOTA, identity switches and re-identification precision/recall.</li>
+  <li>Calibrate identity thresholds by frame rate, camera type and target scale.</li>
+  <li>Train and validate a temporal LSTM only when sufficient identity-labelled trajectories exist.</li>
+  <li>Evaluate a learned appearance embedding against the histogram baseline.</li>
+  <li>Acquire genuine oriented labels before testing a true OBB model.</li>
+  <li>Add camera calibration and georeferencing for physical coordinates.</li>
+  <li>Integrate real radar/RF/acoustic devices before claiming multi-sensor performance.</li>
+  <li>Implement Protobuf SAPIENT messages and conformance testing.</li>
+  <li>Conduct operator-centred usability and safety evaluation.</li>
+</ol>
+
+<h2>8. References</h2>
+<ol>
+  <li>Ultralytics, YOLO documentation: training, validation, prediction and dataset formats.</li>
+  <li>J. Zhao et al., “Vision-Based Anti-UAV Detection and Tracking,” IEEE Transactions on Intelligent Transportation Systems, 2022.</li>
+  <li>DUT Anti-UAV official repository and dataset documentation.</li>
+  <li>Y. Zhang et al., “ByteTrack: Multi-Object Tracking by Associating Every Detection Box,” ECCV, 2022.</li>
+  <li>G. Welch and G. Bishop, “An Introduction to the Kalman Filter,” University of North Carolina at Chapel Hill.</li>
+  <li>BSI Flex 335 v1.0:2023-07, SAPIENT network interface control document; adopted by NATO as STANREC 4869.</li>
+  <li>UK Planning Inspectorate, Gatwick Airport Northern Runway consultation documentation discussing the December 2018 drone disruption.</li>
+  <li>Journal of Transportation Security, “Estimating the costs for the airport operator and airlines of a drone-related shutdown,” 2020.</li>
+  <li>K. Bernardin and R. Stiefelhagen, “Evaluating Multiple Object Tracking Performance: The CLEAR MOT Metrics,” EURASIP Journal on Image and Video Processing, 2008.</li>
+</ol>
+
+<h2>9. Appendix</h2>
+<h3>Appendix A: Environment and Test Commands</h3>
+<pre>python check_environment.py
+python -m unittest discover -s tests -v
+
+python detect_and_track_video.py `
+  --video ".\New Test Videos\Following same ID after appearing again.mp4" `
+  --weights ".\models\best.pt" `
+  --out ".\test_results\identity_retest_after_merge" `
+  --device 0 --conf 0.25 --imgsz 640</pre>
+
+<h3>Appendix B: Identity Configuration</h3>
+<table>
+  <tr><th>Parameter</th><th>Default</th><th>Purpose</th></tr>
+  <tr><td><code>identity_retention_seconds</code></td><td>10</td><td>Dormant identity-memory duration</td></tr>
+  <tr><td><code>identity_confirm_frames</code></td><td>8</td><td>Evidence frames before old-ID restoration</td></tr>
+  <tr><td><code>identity_max_provisional_frames</code></td><td>24</td><td>Deadline before unmatched TEMP promotion</td></tr>
+  <tr><td><code>identity_match_threshold</code></td><td>0.62</td><td>Maximum accepted hybrid cost</td></tr>
+</table>
+
+<h3>Appendix C: Output Identity Fields</h3>
+<ul>
+  <li><code>internal_track_id</code>: immutable low-level track identifier.</li>
+  <li><code>display_id</code>: identity displayed at the current frame.</li>
+  <li><code>identity_status</code>: confirmed, provisional, reidentified or tracker-only.</li>
+  <li><code>display_id_at_frame</code>: historical label retained for audit.</li>
+  <li><code>final_display_id</code>: resolved identity after finite-video processing.</li>
+  <li><code>identity_events</code>: lifecycle events including dormant, provisional, reidentified, promoted, abandoned and unresolved.</li>
+</ul>
+
+</body>
+</html>
